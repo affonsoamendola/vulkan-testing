@@ -1,11 +1,13 @@
+#include "VulkanHolder.hpp"
+
+#include <iostream>
+#include <stdexcept>
+
 int main()
 {
-    /*
-    VulkanHolder vulkanHolder;
-
     try
     {
-        //Execute.
+        VulkanHolder vulkanHolder;
     }
     catch(const std::exception& e)
     {
@@ -14,5 +16,4 @@ int main()
     }
 
     return EXIT_SUCCESS;
-    */
 }
