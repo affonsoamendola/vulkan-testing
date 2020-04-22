@@ -1,7 +1,10 @@
+/*
+#include "Vulkan.hpp"
+
 #include "VulkanTexture.hpp"
 #include "VulkanImage.hpp"
 
-#include "SDL2/SDL_image.hpp"
+#include "SDL2/SDL_image.h"
 
 void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite, 
 											uint32_t layer)
@@ -15,7 +18,8 @@ void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite,
 	(registry[layer]).push_back(ptr_sprite);
 }
 
-VulkanTexture::VulkanTexture(	VkPhysicalDevice physical_device, VkDevice logical_device,
+//Creates a Vulkan Texture object, loading from the file specified.
+VulkanTexture::VulkanTexture(	VulkanHolder vulkan,
 								const char* texture_file)
 {
 	VkImage texture_image;
@@ -42,8 +46,9 @@ VulkanTexture::VulkanTexture(	VkPhysicalDevice physical_device, VkDevice logical
 	SDL_FreeFormat(sdl_format);
 	SDL_FreeSurface(img_surface);
 
-	createVulkanImage(	physical_device, logical_device, 
-						image_width, image_height,
-						format,
-						texture_image, device_memory)
-}
+	createVulkanImage(	vulkan.vk_physicalDevice, vulkan.vk_logicalDevice, 
+						converted_surface->w, converted_surface->h,
+						VK_FORMAT_B8G8R8A8_UINT,
+						texture_image, device_memory);
+
+}*/

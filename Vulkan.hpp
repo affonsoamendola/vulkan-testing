@@ -17,6 +17,13 @@
 
 #define VULKAN_SUBRESOURCE_LAYER_COLOR {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}
 
+//Holds the requested validation layers.
+const std::vector<const char*> validation_layers =
+{
+
+    "VK_LAYER_KHRONOS_validation"
+};
+
 //Holds the queue family indices.
 struct QueueFamilyIndices
 {
@@ -49,7 +56,7 @@ public:
         drawFrames();
         std::cout << "FPS = " << getFPS() << std::endl;
     }
-private:
+
 	const uint32_t WIDTH = 320;
     const uint32_t HEIGHT = 240;
     const uint32_t PIXEL_SCALE = 3;
@@ -106,7 +113,7 @@ private:
     std::vector<VkFence> vk_inFlightFences;
     std::vector<VkFence> vk_imagesInFlight;
 
-    VulkanSpriteRegistry vk_spriteRegistry;
+    //VulkanSpriteRegistry vk_spriteRegistry;
 
     size_t vk_currentFrame = 0;
 
@@ -118,9 +125,9 @@ private:
 
 	std::vector<const char*> getRequiredExtensions();
 
-	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-	void setupDebugMessenger();
-	bool checkValidationLayerSupport();
+	void populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+	void setup_debug_messenger();
+	bool check_validation_layer_support();
 
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
@@ -157,6 +164,8 @@ private:
 	void drawFrames();
 
     double getFPS();
+    uint32_t findMemoryType(    uint32_t typeFilter, 
+                                VkMemoryPropertyFlags properties);
 
     
 	void cleanup();
@@ -178,3 +187,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback
 }
 
 uint32_t findMemoryType(VkPhysicalDevice device, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+void destroy_debug_utils_messenger_EXT
+(
+    VkInstance instance, 
+    VkDebugUtilsMessengerEXT debug_messenger,
+    const VkAllocationCallbacks* ptr_allocator
+);

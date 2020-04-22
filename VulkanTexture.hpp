@@ -1,8 +1,11 @@
+/*
 #pragma once
 #include <vector>
 
+#include "Vulkan.hpp"
 #include <vulkan/vulkan.h>
 
+class VulkanHolder;
 
 //Holds a Texture definition, which is composed of an image, 
 //its size and format, and its location on device memory.
@@ -11,7 +14,8 @@
 //needed for any of my games, but you never know.)
 struct VulkanTexture
 {
-	VulkanTexture(const char* texture_file);
+	VulkanTexture(	VulkanHolder vulkan, 
+					const char* texture_file);
 	~VulkanTexture();
 
 	VkImage 		image;
@@ -40,7 +44,6 @@ struct VulkanSpriteRegistry
 
 	void register_sprite(VulkanSprite* ptr_sprite, uint32_t layer);
 };
-
-
+*/
 
 
