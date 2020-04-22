@@ -1,9 +1,10 @@
+SOURCES = main.cpp Vulkan.cpp VulkanTexture.cpp VulkanImage.cpp Input.cpp
 VULKAN_SDK_PATH = /home/affonso/opt/vulkansdk/x86_64
-CFLAGS = -std=c++17 -I$(VULKAN_SDK_PATH)/include
-LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs glfw3` -lvulkan
+CFLAGS = -std=c++17 -I$(VULKAN_SDK_PATH)/include -g
+LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs sdl2` -lvulkan
 
-vulkantest: main.cpp VulkanHolder.cpp
-	g++ $(CFLAGS) -o vulkantest main.cpp VulkanHolder.cpp $(LDFLAGS)
+vulkantest: $(SOURCES)
+	g++ $(CFLAGS) -o vulkantest $(SOURCES) $(LDFLAGS)
 
 .PHONY: test clean
 

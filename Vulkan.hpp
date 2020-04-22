@@ -1,10 +1,21 @@
 #pragma once
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+
+#include "SDL2/SDL.h"
+#include "SDL2/SDL_vulkan.h"
+
+#include "vulkan/vulkan.hpp"
+
+#include "VulkanTexture.hpp"
+#include "VulkanImage.hpp"
+
+#include "Timer.hpp"
+
 #include <vector>
 #include <optional>
 #include <iostream>
 #include <stdexcept>
+
+#define VULKAN_SUBRESOURCE_LAYER_COLOR {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}
 
 //Holds the queue family indices.
 struct QueueFamilyIndices
@@ -32,11 +43,18 @@ class VulkanHolder
 public:
 	VulkanHolder();
 	~VulkanHolder();
-private:
-	const uint32_t WIDTH = 800;
-    const uint32_t HEIGHT = 600;
 
-    const int MAX_FRAMES_IN_FLIGHT = 2;
+    void update()
+    {
+        drawFrames();
+        std::cout << "FPS = " << getFPS() << std::endl;
+    }
+private:
+	const uint32_t WIDTH = 320;
+    const uint32_t HEIGHT = 240;
+    const uint32_t PIXEL_SCALE = 3;
+
+    const int MAX_FRAMES_IN_FLIGHT = 3;
 
     #ifdef NDEBUG
     const bool vk_enableValidationLayers = false;
@@ -44,7 +62,7 @@ private:
     const bool vk_enableValidationLayers = true;
     #endif
 
-    GLFWwindow*        ptr_window;
+    SDL_Window*        ptr_window = nullptr; 
     VkInstance         vk_instance;
     VkSurfaceKHR       vk_surface;
 
@@ -56,14 +74,24 @@ private:
     VkQueue            vk_graphicsQueue;
     VkQueue            vk_presentQueue;
     
+    std::vector<VkImage>        vk_renderTargetImages;
+    std::vector<VkDeviceMemory> vk_renderTargetDeviceMemory;
+    std::vector<VkImageView>    vk_renderTargetImageViews;
+    VkFormat                    vk_renderTargetImageFormat;
+    VkExtent2D                  vk_renderTargetImageExtent;
+    VkImageLayout               vk_renterTargetImageLayout;
+    std::vector<VkFramebuffer>  vk_renderTargetFramebuffers;
+
+    std::vector<Timer*>          vk_swapTimers;
+
     VkSwapchainKHR        vk_swapChain;
     std::vector<VkImage>  vk_swapChainImages;
     VkFormat              vk_swapChainImageFormat;
+    VkImageLayout         vk_swapChainImageLayout;
     VkExtent2D            vk_swapChainImageExtent;
 
     std::vector<VkImageView>    vk_swapChainImageViews;
-    std::vector<VkFramebuffer>  vk_swapChainFramebuffers;
-
+    
     VkPipelineLayout    vk_pipelineLayout;
     VkPipeline          vk_graphicsPipeline;
     VkRenderPass        vk_renderPass;
@@ -78,36 +106,59 @@ private:
     std::vector<VkFence> vk_inFlightFences;
     std::vector<VkFence> vk_imagesInFlight;
 
+    VulkanSpriteRegistry vk_spriteRegistry;
+
     size_t vk_currentFrame = 0;
 
     void windowInit();
 	void createSurface();
+
 	void vulkanInit();
 	void createVulkanInstance();
+
 	std::vector<const char*> getRequiredExtensions();
+
 	void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 	void setupDebugMessenger();
 	bool checkValidationLayerSupport();
+
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
 	void pickPhysicalDevice();
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 	bool isDeviceSuitable(VkPhysicalDevice device);
+
 	void createLogicalDevice();
+
+    void createRenderTargets();
+    void createRenderTargetImageViews();
+
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes); 
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities); 
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 	void createSwapChain();
-	void createImageViews();
+	void createSwapChainImageViews();
+
 	void createRenderPass();
+
 	VkShaderModule createShaderModule(const std::vector<char>& code);
+
 	void createGraphicsPipeline();
+
 	void createFramebuffers(); 
+
 	void createCommandPool();
 	void createCommandBuffers(); 
+    void commandInstructions(uint32_t currentCommandBuffer);
+
 	void createSyncObjects(); 
-	void mainLoop();
+
 	void drawFrames();
+
+    double getFPS();
+
+    
 	void cleanup();
 };
 
@@ -125,3 +176,5 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback
     std::cerr << "Validation Layer : " << ptr_callbackData->pMessage << std::endl;
     return VK_FALSE;       
 }
+
+uint32_t findMemoryType(VkPhysicalDevice device, uint32_t typeFilter, VkMemoryPropertyFlags properties);
