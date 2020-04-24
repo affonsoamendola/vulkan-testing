@@ -1,8 +1,19 @@
-#include <vector>
-#include <cstring>
-
-#include "vulkan/vulkan.h"
 #include "Vulkan.hpp"
+
+//Callback function for the debug messenger.
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback
+(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* ptr_callbackData,
+    void* ptr_userData
+)
+{
+    //Prints debug message to console
+    //TODO: Add logging to file.
+    std::cerr << "Validation Layer : " << ptr_callbackData->pMessage << std::endl;
+    return VK_FALSE;       
+}
 
 
 //Creates the debug Utils Messenger.
@@ -43,7 +54,7 @@ void destroy_debug_utils_messenger_EXT
 }
 
 //Populates the create info struct for the Debug Messenger.
-void VulkanHolder::populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& create_info)
+void Vulkan::populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& create_info)
 {   
     create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -60,22 +71,22 @@ void VulkanHolder::populate_debug_messenger_create_info(VkDebugUtilsMessengerCre
     create_info.pUserData = nullptr;
 }
 
-void VulkanHolder::setup_debug_messenger()  //Sets up the debug Messenger system
+void Vulkan::setup_debug_messenger()  //Sets up the debug Messenger system
 {
-    if(!vk_enableValidationLayers) return; //We dont need a debug messenger if we are not in a debug build (Also we need validation layers to actually send messages to it.)
+    if(!enable_validation_layers) return; //We dont need a debug messenger if we are not in a debug build (Also we need validation layers to actually send messages to it.)
                                            //....I think.
 
     VkDebugUtilsMessengerCreateInfoEXT createInfo;  
     populate_debug_messenger_create_info(createInfo); //Populates the *actual* create info for the debugMessenger, the other one doesnt actually create a debug messenger.
 
     //Creates debug Messenger.
-    if (create_debug_utils_messenger_EXT(vk_instance, &createInfo, nullptr, &vk_debugMessenger) != VK_SUCCESS)
+    if (create_debug_utils_messenger_EXT(instance, &createInfo, nullptr, &debug_messenger) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to set up debug messenger!");
     }
 }
 
-bool VulkanHolder::check_validation_layer_support() //Checks if requested Validation Layers are available.
+bool Vulkan::check_validation_layer_support() //Checks if requested Validation Layers are available.
 {
     unsigned int layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -104,3 +115,4 @@ bool VulkanHolder::check_validation_layer_support() //Checks if requested Valida
 
     return true;    
 }
+

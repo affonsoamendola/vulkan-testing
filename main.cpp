@@ -10,7 +10,7 @@
 bool is_game_running = true;
 
 Input* input;
-VulkanHolder* vulkan;
+Vulkan* vulkan;
 
 void init()
 {
@@ -24,7 +24,7 @@ void init()
         throw std::runtime_error("Could not initialize SDL2_image.");
     }
 
-    vulkan = new VulkanHolder();
+    vulkan = new Vulkan();
     input = new Input();
 }
 

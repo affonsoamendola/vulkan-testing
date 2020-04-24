@@ -1,58 +1,100 @@
-#include "SDL2/SDL.h"
-#include "SDL2/SDL_vulkan.h"
-
-#include "vulkan/vulkan.hpp"
-
-#include <iostream>
-#include <stdexcept>
-#include <functional>
-#include <cstdlib>
-#include <cstring>
-#include <cstdint>
-#include <optional>
-#include <algorithm>
-#include <set>
-#include <fstream>
-
 #include "Vulkan.hpp"
-#include "Timer.hpp"
 
-VulkanHolder::VulkanHolder()
+//Initializes all of the vulkan systems
+Vulkan::Vulkan()
 {
-    windowInit();
-    vulkanInit();
+    window_init();
+    create_vulkan_instance();
+    setup_debug_messenger();
+    create_surface();
+    pick_physical_device();
+    create_logical_device();
+    create_swap_chain();
+    create_swap_chain_image_views();
+    create_render_targets();
+    create_render_target_image_views();
+    create_render_pass();
+    create_graphics_pipeline();
+    create_framebuffers();
+    create_command_pool();
+    create_render_command_buffers();
+    create_sync_objects();
 }
 
-VulkanHolder::~VulkanHolder()
+//Deallocates everything that was allocated by vulkan.
+Vulkan::~Vulkan()
 {
-
-    cleanup();  
-}
-
-double VulkanHolder::getFPS()
-{
-    double average_frame_time = 0.;
-
-    for(int i = 0; i < vk_swapTimers.size(); i++)
+    for(auto timer : swap_timers)
     {
-        average_frame_time += vk_swapTimers[i]->delta_time();
+        delete timer;
     }
 
-    average_frame_time /= vk_swapTimers.size();
+    vkDeviceWaitIdle(logical_device);
 
-    return 1./average_frame_time;
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        vkDestroySemaphore(logical_device, render_finished_semaphores[i], nullptr);
+        vkDestroySemaphore(logical_device, image_available_semaphores[i], nullptr);
+        vkDestroyFence(logical_device, in_flight_fences[i], nullptr);
+    }
+
+    vkDestroyCommandPool(logical_device, command_pool, nullptr);
+
+    for (auto framebuffer : render_target_framebuffers) 
+    {
+        vkDestroyFramebuffer(logical_device, framebuffer, nullptr);
+    }
+
+    vkDestroyPipeline(logical_device, graphics_pipeline, nullptr);
+    vkDestroyPipelineLayout(logical_device, pipeline_layout, nullptr);
+    vkDestroyRenderPass(logical_device, render_pass, nullptr);
+
+    for (auto render_target_mem : render_target_device_memory) 
+    {
+        vkFreeMemory(logical_device, render_target_mem, nullptr);
+    }
+
+    for (auto render_target : render_target_images) 
+    {
+        vkDestroyImage(logical_device, render_target, nullptr);
+    }
+
+    for (auto render_target_image_view : render_target_image_views) 
+    {
+        vkDestroyImageView(logical_device, render_target_image_view, nullptr);
+    }
+   
+    for (auto image_view : swap_chain_image_views) 
+    {
+        vkDestroyImageView(logical_device, image_view, nullptr);
+    }
+   
+    vkDestroySwapchainKHR(logical_device, swap_chain, nullptr);
+    vkDestroyDevice(logical_device, nullptr);
+
+    if(enable_validation_layers)
+    {
+        destroy_debug_utils_messenger_EXT(instance, debug_messenger, nullptr);
+    }
+
+    vkDestroySurfaceKHR(instance, surface, nullptr);
+    vkDestroyInstance(instance, nullptr);
+
+    SDL_DestroyWindow(ptr_window);
+    SDL_Quit();
 }
 
-uint32_t VulkanHolder::findMemoryType(  uint32_t typeFilter, 
-                                        VkMemoryPropertyFlags properties) 
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(vk_physicalDevice, &memProperties);
 
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) 
+uint32_t Vulkan::find_memory_type(  uint32_t type_filter, 
+                                    VkMemoryPropertyFlags properties) 
+{
+    VkPhysicalDeviceMemoryProperties mem_properties;
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
+
+    for (uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) 
     {
-        if ((typeFilter & (1 << i)) && 
-            (memProperties.memoryTypes[i].propertyFlags & properties) == properties) 
+        if ((type_filter & (1 << i)) && 
+            (mem_properties.memoryTypes[i].propertyFlags & properties) == properties) 
         {
             return i;
         }

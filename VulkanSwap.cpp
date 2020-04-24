@@ -1,9 +1,7 @@
-
-#include "vulkan/vulkan.h"
 #include "Vulkan.hpp"
 
 //Chooses the swapsurface format.
-VkSurfaceFormatKHR VulkanHolder::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+VkSurfaceFormatKHR Vulkan::choose_swap_surface_format(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
     for (const auto& availableFormat : availableFormats) 
     {
@@ -18,7 +16,7 @@ VkSurfaceFormatKHR VulkanHolder::chooseSwapSurfaceFormat(const std::vector<VkSur
 }
 
 //Chooses the swapsurface Present mode.
-VkPresentModeKHR VulkanHolder::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
+VkPresentModeKHR Vulkan::choose_swap_present_mode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
 {
     for (const auto& availablePresentMode : availablePresentModes) 
     {
@@ -32,7 +30,7 @@ VkPresentModeKHR VulkanHolder::chooseSwapPresentMode(const std::vector<VkPresent
 }
 
 //Chooses the swapsurface extent..
-VkExtent2D VulkanHolder::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) 
+VkExtent2D Vulkan::choose_swap_extent(const VkSurfaceCapabilitiesKHR& capabilities) 
 {
  
     if (capabilities.currentExtent.width != UINT32_MAX) 
@@ -50,39 +48,39 @@ VkExtent2D VulkanHolder::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabi
 }
 
 //Checks if the physical device supports the swap chain we need.
-SwapChainSupportDetails VulkanHolder::querySwapChainSupport(VkPhysicalDevice device)
+SwapChainSupportDetails Vulkan::query_swap_chain_support(VkPhysicalDevice device)
 {
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, vk_surface, &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, vk_surface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
 
     if (formatCount != 0) {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, vk_surface, &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, vk_surface, &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
 
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, vk_surface, &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
     }
 
     return details;
 }
 
 //Crates the actual swapchain.
-void VulkanHolder::createSwapChain() 
+void Vulkan::create_swap_chain() 
 {
-    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(vk_physicalDevice);
+    SwapChainSupportDetails swapChainSupport = query_swap_chain_support(physical_device);
 
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-    VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+    VkSurfaceFormatKHR surfaceFormat = choose_swap_surface_format(swapChainSupport.formats);
+    VkPresentModeKHR presentMode = choose_swap_present_mode(swapChainSupport.presentModes);
+    VkExtent2D extent = choose_swap_extent(swapChainSupport.capabilities);
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
@@ -94,7 +92,7 @@ void VulkanHolder::createSwapChain()
     VkSwapchainCreateInfoKHR createInfo = {};
 
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = vk_surface;
+    createInfo.surface = surface;
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -102,7 +100,7 @@ void VulkanHolder::createSwapChain()
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    QueueFamilyIndices indices = findQueueFamilies(vk_physicalDevice);
+    QueueFamilyIndices indices = find_queue_families(physical_device);
     uint32_t queueFamilyIndices[] = 
     {
         indices.graphicsFamily.value(), indices.presentFamily.value()
@@ -127,38 +125,38 @@ void VulkanHolder::createSwapChain()
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
 
-    if(vkCreateSwapchainKHR(vk_logicalDevice, &createInfo, nullptr, &vk_swapChain) != VK_SUCCESS)
+    if(vkCreateSwapchainKHR(logical_device, &createInfo, nullptr, &swap_chain) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create Swapchain.");
     }
 
-    vkGetSwapchainImagesKHR(vk_logicalDevice, vk_swapChain, &imageCount, nullptr);
-    vk_swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(vk_logicalDevice, vk_swapChain, &imageCount, vk_swapChainImages.data());
+    vkGetSwapchainImagesKHR(logical_device, swap_chain, &imageCount, nullptr);
+    swap_chain_images.resize(imageCount);
+    vkGetSwapchainImagesKHR(logical_device, swap_chain, &imageCount, swap_chain_images.data());
 
-    vk_swapChainImageFormat = surfaceFormat.format;
-    vk_swapChainImageExtent = extent;
+    swap_chain_image_format = surfaceFormat.format;
+    swap_chain_image_extent = extent;
 
-    vk_swapTimers.resize(imageCount);
+    swap_timers.resize(imageCount);
 
     for(int i = 0; i < imageCount; i++)
     {
-        vk_swapTimers[i] = new Timer();
+        swap_timers[i] = new Timer();
     }    
 }
 
 //Creates the image views for every swapchain image.
-void VulkanHolder::createSwapChainImageViews()
+void Vulkan::create_swap_chain_image_views()
 {
-    vk_swapChainImageViews.resize(vk_swapChainImages.size());
+    swap_chain_image_views.resize(swap_chain_images.size());
 
-    for(size_t i = 0; i < vk_swapChainImages.size(); i++)
+    for(size_t i = 0; i < swap_chain_images.size(); i++)
     {
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = vk_swapChainImages[i];
+        createInfo.image = swap_chain_images[i];
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = vk_swapChainImageFormat;
+        createInfo.format = swap_chain_image_format;
 
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -171,7 +169,7 @@ void VulkanHolder::createSwapChainImageViews()
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(vk_logicalDevice, &createInfo, nullptr, &vk_swapChainImageViews[i]) != VK_SUCCESS) 
+        if (vkCreateImageView(logical_device, &createInfo, nullptr, &swap_chain_image_views[i]) != VK_SUCCESS) 
         {
             throw std::runtime_error("Failed to create image views.");
         }

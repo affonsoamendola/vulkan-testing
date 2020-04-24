@@ -1,14 +1,9 @@
-/*
-#include <stdexcept>
-
 #include "Vulkan.hpp"
-#include "vulkan/vulkan.h"
 
 //Initializes a VkImage and allocates memory for it in the device.
-void createVulkanImage( VulkanHolder vulkan, 
-                        uint32_t width, uint32_t height, 
-                        VkFormat format,
-                        VkImage& image, VkDeviceMemory& memory)
+void Vulkan::create_vulkan_image(   uint32_t width, uint32_t height, 
+                                    VkFormat format,
+                                    VkImage& image, VkDeviceMemory& memory)
 {
     VkImageCreateInfo create_info = {};
 
@@ -28,23 +23,23 @@ void createVulkanImage( VulkanHolder vulkan,
     create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    if (vkCreateImage(vulkan.vk_logicalDevice, &create_info, nullptr, &image) != VK_SUCCESS)
+    if (vkCreateImage(logical_device, &create_info, nullptr, &image) != VK_SUCCESS)
     {
          throw std::runtime_error("Failed to create image handle.");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(vulkan.vk_logicalDevice, image, &memRequirements);
+    vkGetImageMemoryRequirements(logical_device, image, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = vulkan.findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    allocInfo.memoryTypeIndex = find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    if (vkAllocateMemory(vulkan.vk_logicalDevice, &allocInfo, nullptr, &memory) != VK_SUCCESS) 
+    if (vkAllocateMemory(logical_device, &allocInfo, nullptr, &memory) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to allocate image memory!");
     }
 
-    vkBindImageMemory(vulkan.vk_logicalDevice, image, memory, 0);
-}*/
+    vkBindImageMemory(logical_device, image, memory, 0);
+}

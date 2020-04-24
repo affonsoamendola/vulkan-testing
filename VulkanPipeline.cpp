@@ -1,19 +1,15 @@
-#include <cstddef>
-
-#include "vulkan/vulkan.h"
 #include "Vulkan.hpp"
-#include "Util.hpp"
 
 //Creates render targets for each swapchain Image.
-void VulkanHolder::createRenderTargets()
+void Vulkan::create_render_targets()
 {
-    vk_renderTargetImages.resize(vk_swapChainImages.size());
-    vk_renderTargetDeviceMemory.resize(vk_swapChainImages.size());
-    vk_renderTargetImageExtent = {WIDTH, HEIGHT};
+    render_target_images.resize(swap_chain_images.size());
+    render_target_device_memory.resize(swap_chain_images.size());
+    render_target_image_extent = {WIDTH, HEIGHT};
 
-    VkImage renderTarget;
+    VkImage render_target;
 
-    for(size_t i = 0; i < vk_renderTargetImages.size(); i++)
+    for(size_t i = 0; i < render_target_images.size(); i++)
     {
         VkImageCreateInfo create_info = {};
 
@@ -21,8 +17,8 @@ void VulkanHolder::createRenderTargets()
         create_info.pNext = nullptr;
         create_info.flags = 0;
         create_info.imageType = VK_IMAGE_TYPE_2D;
-        create_info.format = vk_swapChainImageFormat;
-        create_info.extent = {vk_renderTargetImageExtent.width, vk_renderTargetImageExtent.height, 1};
+        create_info.format = swap_chain_image_format;
+        create_info.extent = {render_target_image_extent.width, render_target_image_extent.height, 1};
         create_info.mipLevels = 1;
         create_info.arrayLayers = 1;
         create_info.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -32,7 +28,7 @@ void VulkanHolder::createRenderTargets()
         create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        if (vkCreateImage(vk_logicalDevice, &create_info, nullptr, &renderTarget) != VK_SUCCESS)
+        if (vkCreateImage(logical_device, &create_info, nullptr, &render_target) != VK_SUCCESS)
         {
              throw std::runtime_error("Failed to create render target images.");
         }
@@ -40,39 +36,39 @@ void VulkanHolder::createRenderTargets()
         VkDeviceMemory imageMemory;
 
         VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(vk_logicalDevice, renderTarget, &memRequirements);
+        vkGetImageMemoryRequirements(logical_device, render_target, &memRequirements);
 
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        allocInfo.memoryTypeIndex = find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        if (vkAllocateMemory(vk_logicalDevice, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) 
+        if (vkAllocateMemory(logical_device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) 
         {
             throw std::runtime_error("failed to allocate image memory!");
         }
 
-        vkBindImageMemory(vk_logicalDevice, renderTarget, imageMemory, 0);
+        vkBindImageMemory(logical_device, render_target, imageMemory, 0);
 
-        vk_renderTargetImages[i] = renderTarget;
-        vk_renderTargetDeviceMemory[i] = imageMemory;
+        render_target_images[i] = render_target;
+        render_target_device_memory[i] = imageMemory;
     }
 
-    vk_renderTargetImageFormat = vk_swapChainImageFormat;
+    render_target_image_format = swap_chain_image_format;
 }
 
-//Creates the image views for every rendertarget image.
-void VulkanHolder::createRenderTargetImageViews()
+//Creates the image views for every render_target image.
+void Vulkan::create_render_target_image_views()
 {
-    vk_renderTargetImageViews.resize(vk_renderTargetImages.size());
+    render_target_image_views.resize(render_target_images.size());
 
-    for(size_t i = 0; i < vk_renderTargetImages.size(); i++)
+    for(size_t i = 0; i < render_target_images.size(); i++)
     {
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = vk_renderTargetImages[i];
+        createInfo.image = render_target_images[i];
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = vk_renderTargetImageFormat;
+        createInfo.format = render_target_image_format;
 
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -85,7 +81,7 @@ void VulkanHolder::createRenderTargetImageViews()
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(vk_logicalDevice, &createInfo, nullptr, &vk_renderTargetImageViews[i]) != VK_SUCCESS) 
+        if (vkCreateImageView(logical_device, &createInfo, nullptr, &render_target_image_views[i]) != VK_SUCCESS) 
         {
             throw std::runtime_error("Failed to create image views.");
         }
@@ -94,10 +90,10 @@ void VulkanHolder::createRenderTargetImageViews()
 
 //TODO: Better Documentation
 //Creates the Render Pass
-void VulkanHolder::createRenderPass()
+void Vulkan::create_render_pass()
 {
     VkAttachmentDescription colorAttachment = {};
-    colorAttachment.format = vk_renderTargetImageFormat;
+    colorAttachment.format = render_target_image_format;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -132,14 +128,14 @@ void VulkanHolder::createRenderPass()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(vk_logicalDevice, &renderPassInfo, nullptr, &vk_renderPass) != VK_SUCCESS) 
+    if (vkCreateRenderPass(logical_device, &renderPassInfo, nullptr, &render_pass) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to create render pass.");
     }
 }
 
 //Loads the bytecode of a glsl SPIR-V shader into a VkShaderModule wrapper.
-VkShaderModule VulkanHolder::createShaderModule(const std::vector<char>& code) //THIS IS FINE
+VkShaderModule Vulkan::create_shader_module(const std::vector<char>& code) //THIS IS FINE
 {
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -147,7 +143,7 @@ VkShaderModule VulkanHolder::createShaderModule(const std::vector<char>& code) /
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(vk_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
+    if (vkCreateShaderModule(logical_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to create shader module.");
     }
@@ -156,13 +152,13 @@ VkShaderModule VulkanHolder::createShaderModule(const std::vector<char>& code) /
 }
 
 //Creates the graphics Pipeline we'll use.
-void VulkanHolder::createGraphicsPipeline()
+void Vulkan::create_graphics_pipeline()
 {
     auto vertShaderBytecode = read_file("shaders/vert.spv");
     auto fragShaderBytecode = read_file("shaders/frag.spv");
 
-    VkShaderModule vertShaderModule = createShaderModule(vertShaderBytecode);
-    VkShaderModule fragShaderModule = createShaderModule(fragShaderBytecode);
+    VkShaderModule vertShaderModule = create_shader_module(vertShaderBytecode);
+    VkShaderModule fragShaderModule = create_shader_module(fragShaderBytecode);
 
     //Adds teh vertex shader module to the pipeline
     VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
@@ -198,15 +194,15 @@ void VulkanHolder::createGraphicsPipeline()
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) vk_renderTargetImageExtent.width;
-    viewport.height = (float) vk_renderTargetImageExtent.height;
+    viewport.width = (float) render_target_image_extent.width;
+    viewport.height = (float) render_target_image_extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     //Defines the scissor plane
     VkRect2D scissor = {};
     scissor.offset = {0, 0};
-    scissor.extent = vk_renderTargetImageExtent;
+    scissor.extent = render_target_image_extent;
 
     //Creates the viewport
     VkPipelineViewportStateCreateInfo viewportState = {};
@@ -270,7 +266,7 @@ void VulkanHolder::createGraphicsPipeline()
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-    if (vkCreatePipelineLayout(vk_logicalDevice, &pipelineLayoutInfo, nullptr, &vk_pipelineLayout) != VK_SUCCESS) 
+    if (vkCreatePipelineLayout(logical_device, &pipelineLayoutInfo, nullptr, &pipeline_layout) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to create pipeline layout.");
     }
@@ -288,271 +284,75 @@ void VulkanHolder::createGraphicsPipeline()
     pipelineInfo.pDepthStencilState = nullptr; // Optional
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = nullptr; // Optional
-    pipelineInfo.layout = vk_pipelineLayout;
-    pipelineInfo.renderPass = vk_renderPass;
+    pipelineInfo.layout = pipeline_layout;
+    pipelineInfo.renderPass = render_pass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
-    if (vkCreateGraphicsPipelines(vk_logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vk_graphicsPipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(logical_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphics_pipeline) != VK_SUCCESS)
     { 
         throw std::runtime_error("Failed to create graphics pipeline!");
     }
 
     //Destroys no longer needed shader modules, since they were already uploaded to the gpu.
-    vkDestroyShaderModule(vk_logicalDevice, fragShaderModule, nullptr); 
-    vkDestroyShaderModule(vk_logicalDevice, vertShaderModule, nullptr); 
+    vkDestroyShaderModule(logical_device, fragShaderModule, nullptr); 
+    vkDestroyShaderModule(logical_device, vertShaderModule, nullptr); 
 }
 
-//Creates the Framebuffer for every renderTarget image.
-void VulkanHolder::createFramebuffers() 
+//Creates the Framebuffer for every render_target image.
+void Vulkan::create_framebuffers() 
 {
-    vk_renderTargetFramebuffers.resize(vk_renderTargetImageViews.size());
+    render_target_framebuffers.resize(render_target_image_views.size());
 
-    for (size_t i = 0; i < vk_renderTargetImageViews.size(); i++) 
+    for (size_t i = 0; i < render_target_image_views.size(); i++) 
     {
         VkImageView attachments[] = 
         {
-            vk_renderTargetImageViews[i]
+            render_target_image_views[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = vk_renderPass;
+        framebufferInfo.renderPass = render_pass;
         framebufferInfo.attachmentCount = 1;
         framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = vk_renderTargetImageExtent.width;
-        framebufferInfo.height = vk_renderTargetImageExtent.height;
+        framebufferInfo.width = render_target_image_extent.width;
+        framebufferInfo.height = render_target_image_extent.height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(vk_logicalDevice, &framebufferInfo, nullptr, &vk_renderTargetFramebuffers[i]) != VK_SUCCESS) 
+        if (vkCreateFramebuffer(logical_device, &framebufferInfo, nullptr, &render_target_framebuffers[i]) != VK_SUCCESS) 
         {
             throw std::runtime_error("Failed to create framebuffer.");
         }
     }
 }
 
-//TODO: Better Documentation
-//Creates the command pool
-void VulkanHolder::createCommandPool()
-{
-    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(vk_physicalDevice);
-
-    VkCommandPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-    poolInfo.flags = 0; // Optional
-
-    if (vkCreateCommandPool(vk_logicalDevice, &poolInfo, nullptr, &vk_commandPool) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to create command pool.");
-    }
-}   
-
-//Creates and allocates the command buffers for each framebuffer.
-void VulkanHolder::createCommandBuffers() 
-{   
-    vk_commandBuffers.resize(vk_renderTargetFramebuffers.size());
-
-    VkCommandBufferAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = vk_commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t) vk_commandBuffers.size();
-
-    if (vkAllocateCommandBuffers(vk_logicalDevice, &allocInfo, vk_commandBuffers.data()) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to allocate command buffers.");
-    }
-
-    for (size_t i = 0; i < vk_commandBuffers.size(); i++) 
-    {
-        commandInstructions(i);
-    }
-}
-
-void VulkanHolder::commandInstructions(uint32_t currentCommandBuffer)
-{
-    VkCommandBufferBeginInfo beginInfo = {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    //beginInfo.flags = 0; // Optional
-    //beginInfo.pInheritanceInfo = nullptr; // Optional
-
-    //Begin the GPU command sequence.
-    if (vkBeginCommandBuffer(vk_commandBuffers[currentCommandBuffer], &beginInfo) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to begin recording command buffer.");
-    }
-
-    VkRenderPassBeginInfo renderPassInfo = {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = vk_renderPass;
-    renderPassInfo.framebuffer = vk_renderTargetFramebuffers[currentCommandBuffer];
-    renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = vk_renderTargetImageExtent;
-
-    VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
-
-    //Buffers the needed commands to render the 3D part.
-    vkCmdBeginRenderPass(vk_commandBuffers[currentCommandBuffer], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(vk_commandBuffers[currentCommandBuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, vk_graphicsPipeline);
-        vkCmdDraw(vk_commandBuffers[currentCommandBuffer], 3, 1, 0, 0);
-    vkCmdEndRenderPass(vk_commandBuffers[currentCommandBuffer]);
-    /*
-    for(auto layerVector : vk_spriteRegistry.registry)
-    {
-        for(auto vulkanSprite : layerVector)
-        {
-            VkImageBlit imageBlit = {};
-            imageBlit.srcSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-            imageBlit.srcOffsets[0] = {vulkanSprite->source.offset.x, 
-                                       vulkanSprite->source.offset.y, 0};
-            imageBlit.srcOffsets[1] = {static_cast<int32_t>(vulkanSprite->source.extent.width), 
-                                       static_cast<int32_t>(vulkanSprite->source.extent.height), 1};
-
-            imageBlit.dstSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-            imageBlit.dstOffsets[0] = {vulkanSprite->destination.offset.x, 
-                                       vulkanSprite->destination.offset.y, 0};
-            imageBlit.dstOffsets[1] = {static_cast<int32_t>(vulkanSprite->destination.extent.width), 
-                                       static_cast<int32_t>(vulkanSprite->destination.extent.height), 1};
-            //Queues the actual blitting.
-            vkCmdBlitImage( vk_commandBuffers[currentCommandBuffer], 
-                            vulkanSprite->texture.image,
-                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                            vk_renderTargetImages[currentCommandBuffer],
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                            1,
-                            &imageBlit,
-                            VK_FILTER_NEAREST);
-        }
-    }
-    */  
-    //Creates memory barrier to convert the swapChain image to the transfer destination layout.
-    VkImageMemoryBarrier barrier = {};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.pNext = nullptr;
-    barrier.srcAccessMask = 0;
-    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.image = vk_swapChainImages[currentCommandBuffer];
-
-    vkCmdPipelineBarrier(   vk_commandBuffers[currentCommandBuffer], 
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL,
-                            0, NULL, 1, &barrier);
-
-    VkImageBlit imageBlit = {};
-    imageBlit.srcSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-    imageBlit.srcOffsets[0] = {0, 0, 0};
-    imageBlit.srcOffsets[1] = {static_cast<int32_t>(vk_renderTargetImageExtent.width), 
-                               static_cast<int32_t>(vk_renderTargetImageExtent.height), 1};
-
-    imageBlit.dstSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-    imageBlit.dstOffsets[0] = {0, 0, 0};
-    imageBlit.dstOffsets[1] = {static_cast<int32_t>(vk_swapChainImageExtent.width), 
-                               static_cast<int32_t>(vk_swapChainImageExtent.height), 1};
-
-    //Queues the actual blitting.
-    vkCmdBlitImage( vk_commandBuffers[currentCommandBuffer], 
-                    vk_renderTargetImages[currentCommandBuffer],
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    vk_swapChainImages[currentCommandBuffer],
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    1,
-                    &imageBlit,
-                    VK_FILTER_NEAREST);
-
-    //Convert the swapchain image to a presentable format.
-    VkImageMemoryBarrier prePresentBarrier = {};
-    prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    prePresentBarrier.pNext = nullptr;
-    prePresentBarrier.srcAccessMask = 0;
-    prePresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    prePresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    prePresentBarrier.subresourceRange.baseMipLevel = 0;
-    prePresentBarrier.subresourceRange.levelCount = 1;
-    prePresentBarrier.subresourceRange.baseArrayLayer = 0;
-    prePresentBarrier.subresourceRange.layerCount = 1;
-    prePresentBarrier.image = vk_swapChainImages[currentCommandBuffer];
-
-    vkCmdPipelineBarrier(   vk_commandBuffers[currentCommandBuffer], 
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 
-                            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL,
-                            0, NULL, 1, &prePresentBarrier);
-
-    //End the GPU instructions.
-    if (vkEndCommandBuffer(vk_commandBuffers[currentCommandBuffer]) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to record command buffer.");
-    }
-}
-
-//Creates the syncronization objects we'll use.
-void VulkanHolder::createSyncObjects() 
-{
-    vk_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    vk_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    vk_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-    vk_imagesInFlight.resize(vk_swapChainImages.size(), VK_NULL_HANDLE);
-
-    VkSemaphoreCreateInfo semaphoreInfo = {};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
-    {
-        if (vkCreateSemaphore(vk_logicalDevice, &semaphoreInfo, nullptr, &vk_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(vk_logicalDevice, &semaphoreInfo, nullptr, &vk_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(vk_logicalDevice, &fenceInfo, nullptr, &vk_inFlightFences[i]) != VK_SUCCESS) 
-        {
-
-            throw std::runtime_error("Failed to create semaphores for a frame!");
-        }
-    }
-}
-
-//Loop to draw every frame.
-void VulkanHolder::drawFrames()
+//Loop to draw every frame, ends with a request to present the image.
+void Vulkan::draw_frames()
 {
     //Waits for the fence for the current framebuffer to be signaled
-    vkWaitForFences(vk_logicalDevice, 1, &vk_inFlightFences[vk_currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(logical_device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
     
-    vk_swapTimers[vk_currentFrame]->stop_timer();
+    swap_timers[current_frame]->stop_timer();
 
     //Gets the next image in the swapbuffer, the one we'll be rendering to.
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(vk_logicalDevice, vk_swapChain, UINT64_MAX, vk_imageAvailableSemaphores[vk_currentFrame], VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(logical_device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &imageIndex);
     
     // Check if a previous frame is using this image (i.e. there is its fence to wait on)
-    if (vk_imagesInFlight[imageIndex] != VK_NULL_HANDLE) 
+    if (images_in_flight[imageIndex] != VK_NULL_HANDLE) 
     {
-        vkWaitForFences(vk_logicalDevice, 1, &vk_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(logical_device, 1, &images_in_flight[imageIndex], VK_TRUE, UINT64_MAX);
     }
     // Mark the image as now being in use by this frame
-    vk_imagesInFlight[imageIndex] = vk_inFlightFences[vk_currentFrame];
+    images_in_flight[imageIndex] = in_flight_fences[current_frame];
 
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     //Tell Queue to wait for the image aquisition when it reaches the color attachment output stage.
-    VkSemaphore waitSemaphores[] = {vk_imageAvailableSemaphores[vk_currentFrame]};
+    VkSemaphore waitSemaphores[] = {image_available_semaphores[current_frame]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -560,18 +360,18 @@ void VulkanHolder::drawFrames()
 
     //Tells the queue to execture the commandbuffer previously define for the imageIndex.
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &vk_commandBuffers[imageIndex];
+    submitInfo.pCommandBuffers = &command_buffers[imageIndex];
 
     //Tell GPU to signal the vk_kenderFinishedSemaphore for this framebuffer when that operation is done
-    VkSemaphore signalSemaphores[] = {vk_renderFinishedSemaphores[vk_currentFrame]};
+    VkSemaphore signalSemaphores[] = {render_finished_semaphores[current_frame]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
     
     //Resets the current frame fence.
-    vkResetFences(vk_logicalDevice, 1, &vk_inFlightFences[vk_currentFrame]);
+    vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
 
     //Sends the command buffer to the graphics queue, to be processed, sets fence when done.
-    if (vkQueueSubmit(vk_graphicsQueue, 1, &submitInfo,  vk_inFlightFences[vk_currentFrame]) != VK_SUCCESS) 
+    if (vkQueueSubmit(graphics_queue, 1, &submitInfo,  in_flight_fences[current_frame]) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to submit draw command buffer.");
     }
@@ -582,15 +382,30 @@ void VulkanHolder::drawFrames()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
 
-    VkSwapchainKHR swapChains[] = {vk_swapChain};
+    VkSwapchainKHR swapChains[] = {swap_chain};
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr; // Optional
 
     //Queue the command to present the current frame image.
-    vkQueuePresentKHR(vk_presentQueue, &presentInfo);
-    vk_currentFrame = (vk_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    vkQueuePresentKHR(present_queue, &presentInfo);
+    current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
-    vk_swapTimers[vk_currentFrame]->start_timer();
+    std::cout << "FPS = " << get_FPS() << std::endl;
+    swap_timers[current_frame]->start_timer();
+}
+
+double Vulkan::get_FPS()
+{
+    double average_frame_time = 0.;
+
+    for(int i = 0; i < swap_timers.size(); i++)
+    {
+        average_frame_time += swap_timers[i]->delta_time();
+    }
+
+    average_frame_time /= swap_timers.size();
+
+    return 1./average_frame_time;
 }

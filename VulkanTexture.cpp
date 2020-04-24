@@ -1,25 +1,7 @@
-/*
 #include "Vulkan.hpp"
 
-#include "VulkanTexture.hpp"
-#include "VulkanImage.hpp"
-
-#include "SDL2/SDL_image.h"
-
-void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite, 
-											uint32_t layer)
-{
-	if(layer >= registered_layers)
-	{
-		registry.resize(layer + 1);
-		registered_layers = layer;
-	}
-
-	(registry[layer]).push_back(ptr_sprite);
-}
-
 //Creates a Vulkan Texture object, loading from the file specified.
-VulkanTexture::VulkanTexture(	VulkanHolder vulkan,
+VulkanTexture::VulkanTexture(	Vulkan* vulkan,
 								const char* texture_file)
 {
 	VkImage texture_image;
@@ -46,9 +28,23 @@ VulkanTexture::VulkanTexture(	VulkanHolder vulkan,
 	SDL_FreeFormat(sdl_format);
 	SDL_FreeSurface(img_surface);
 
-	createVulkanImage(	vulkan.vk_physicalDevice, vulkan.vk_logicalDevice, 
-						converted_surface->w, converted_surface->h,
-						VK_FORMAT_B8G8R8A8_UINT,
-						texture_image, device_memory);
+	vulkan->create_vulkan_image(	converted_surface->w, converted_surface->h,
+									VK_FORMAT_B8G8R8A8_UINT,
+									texture_image, device_memory);
 
-}*/
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+}
+
+void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite, 
+											uint32_t layer)
+{
+	if(layer >= registered_layers)
+	{
+		registry.resize(layer + 1);
+		registered_layers = layer;
+	}
+
+	(registry[layer]).push_back(ptr_sprite);
+}
+

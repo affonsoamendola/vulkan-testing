@@ -2,61 +2,36 @@
 
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_vulkan.h"
+#include "SDL2/SDL_image.h"
 
 #include "vulkan/vulkan.hpp"
-
-#include "VulkanTexture.hpp"
-#include "VulkanImage.hpp"
-
-#include "Timer.hpp"
 
 #include <vector>
 #include <optional>
 #include <iostream>
 #include <stdexcept>
+#include <functional>
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+#include <optional>
+#include <algorithm>
+#include <set>
+#include <fstream>
+#include <cstddef>
+
+#include "VulkanDebug.hpp"
+#include "VulkanSetup.hpp"
+#include "VulkanSwap.hpp"
+
+#include "Timer.hpp"
+#include "Util.hpp"
 
 #define VULKAN_SUBRESOURCE_LAYER_COLOR {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}
 
-//Holds the requested validation layers.
-const std::vector<const char*> validation_layers =
-{
-
-    "VK_LAYER_KHRONOS_validation"
-};
-
-//Holds the queue family indices.
-struct QueueFamilyIndices
-{
-    std::optional<uint32_t> graphicsFamily;
-    std::optional<uint32_t> presentFamily;
-
-    bool isComplete()
-    {
-        return  graphicsFamily.has_value() && 
-                presentFamily.has_value();
-    }
-};
-
-//Holds the details of the swapchain
-struct SwapChainSupportDetails
-{
-    VkSurfaceCapabilitiesKHR capabilities;
-    std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
-};
-
-class VulkanHolder
+class Vulkan
 {
 public:
-	VulkanHolder();
-	~VulkanHolder();
-
-    void update()
-    {
-        drawFrames();
-        std::cout << "FPS = " << getFPS() << std::endl;
-    }
-
 	const uint32_t WIDTH = 320;
     const uint32_t HEIGHT = 240;
     const uint32_t PIXEL_SCALE = 3;
@@ -64,133 +39,131 @@ public:
     const int MAX_FRAMES_IN_FLIGHT = 3;
 
     #ifdef NDEBUG
-    const bool vk_enableValidationLayers = false;
+    const bool enable_validation_layers = false;
     #else
-    const bool vk_enableValidationLayers = true;
+    const bool enable_validation_layers = true;
     #endif
 
     SDL_Window*        ptr_window = nullptr; 
-    VkInstance         vk_instance;
-    VkSurfaceKHR       vk_surface;
+    VkInstance         instance;
+    VkSurfaceKHR       surface;
 
-    VkDebugUtilsMessengerEXT vk_debugMessenger;
+    VkDebugUtilsMessengerEXT debug_messenger;
 
-    VkPhysicalDevice   vk_physicalDevice = VK_NULL_HANDLE;
-    VkDevice           vk_logicalDevice;
+    VkPhysicalDevice   physical_device = VK_NULL_HANDLE;
+    VkDevice           logical_device;
     
-    VkQueue            vk_graphicsQueue;
-    VkQueue            vk_presentQueue;
+    VkQueue            graphics_queue;
+    VkQueue            present_queue;
     
-    std::vector<VkImage>        vk_renderTargetImages;
-    std::vector<VkDeviceMemory> vk_renderTargetDeviceMemory;
-    std::vector<VkImageView>    vk_renderTargetImageViews;
-    VkFormat                    vk_renderTargetImageFormat;
-    VkExtent2D                  vk_renderTargetImageExtent;
-    VkImageLayout               vk_renterTargetImageLayout;
-    std::vector<VkFramebuffer>  vk_renderTargetFramebuffers;
+    std::vector<VkImage>        render_target_images;
+    std::vector<VkDeviceMemory> render_target_device_memory;
+    std::vector<VkImageView>    render_target_image_views;
+    VkFormat                    render_target_image_format;
+    VkExtent2D                  render_target_image_extent;
+    VkImageLayout               renter_target_image_layout;
+    std::vector<VkFramebuffer>  render_target_framebuffers;
 
-    std::vector<Timer*>          vk_swapTimers;
+    std::vector<Timer*>          swap_timers;
 
-    VkSwapchainKHR        vk_swapChain;
-    std::vector<VkImage>  vk_swapChainImages;
-    VkFormat              vk_swapChainImageFormat;
-    VkImageLayout         vk_swapChainImageLayout;
-    VkExtent2D            vk_swapChainImageExtent;
+    VkSwapchainKHR        swap_chain;
+    std::vector<VkImage>  swap_chain_images;
+    VkFormat              swap_chain_image_format;
+    VkImageLayout         swap_chain_image_layout;
+    VkExtent2D            swap_chain_image_extent;
 
-    std::vector<VkImageView>    vk_swapChainImageViews;
+    std::vector<VkImageView>    swap_chain_image_views;
     
-    VkPipelineLayout    vk_pipelineLayout;
-    VkPipeline          vk_graphicsPipeline;
-    VkRenderPass        vk_renderPass;
+    VkPipelineLayout    pipeline_layout;
+    VkPipeline          graphics_pipeline;
+    VkRenderPass        render_pass;
     
-    VkCommandPool       vk_commandPool;
+    VkCommandPool       command_pool;
 
-    std::vector<VkCommandBuffer> vk_commandBuffers;
+    std::vector<VkCommandBuffer> command_buffers;
 
-    std::vector<VkSemaphore> vk_imageAvailableSemaphores;
-    std::vector<VkSemaphore> vk_renderFinishedSemaphores;
+    std::vector<VkSemaphore> image_available_semaphores;
+    std::vector<VkSemaphore> render_finished_semaphores;
     
-    std::vector<VkFence> vk_inFlightFences;
-    std::vector<VkFence> vk_imagesInFlight;
+    std::vector<VkFence> in_flight_fences;
+    std::vector<VkFence> images_in_flight;
 
-    //VulkanSpriteRegistry vk_spriteRegistry;
+    //VulkanSpriteRegistry spriteRegistry;
 
-    size_t vk_currentFrame = 0;
+    size_t current_frame = 0;
 
-    void windowInit();
-	void createSurface();
+     //Init
+    Vulkan();
+    ~Vulkan();
 
-	void vulkanInit();
-	void createVulkanInstance();
+    void window_init();
+	void create_surface();
 
-	std::vector<const char*> getRequiredExtensions();
+	void create_vulkan_instance();
 
-	void populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+	std::vector<const char*> get_required_extensions();
+
+    //Debug
+	void populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& create_info);
 	void setup_debug_messenger();
 	bool check_validation_layer_support();
 
-	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    //Setup
+	QueueFamilyIndices find_queue_families(VkPhysicalDevice device);
 
-	void pickPhysicalDevice();
-	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-	bool isDeviceSuitable(VkPhysicalDevice device);
+	void pick_physical_device();
+	bool check_device_extension_support(VkPhysicalDevice device);
+	bool is_device_suitable(VkPhysicalDevice device);
 
-	void createLogicalDevice();
+	void create_logical_device();
 
-    void createRenderTargets();
-    void createRenderTargetImageViews();
-
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes); 
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities); 
-	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-	void createSwapChain();
-	void createSwapChainImageViews();
-
-	void createRenderPass();
-
-	VkShaderModule createShaderModule(const std::vector<char>& code);
-
-	void createGraphicsPipeline();
-
-	void createFramebuffers(); 
-
-	void createCommandPool();
-	void createCommandBuffers(); 
-    void commandInstructions(uint32_t currentCommandBuffer);
-
-	void createSyncObjects(); 
-
-	void drawFrames();
-
-    double getFPS();
-    uint32_t findMemoryType(    uint32_t typeFilter, 
-                                VkMemoryPropertyFlags properties);
-
+    //Swapchain
+    VkSurfaceFormatKHR choose_swap_surface_format(const std::vector<VkSurfaceFormatKHR>& available_formats);
+    VkPresentModeKHR choose_swap_present_mode(const std::vector<VkPresentModeKHR>& available_present_modes); 
+    VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR& capabilities); 
+    SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device);
     
-	void cleanup();
+    void create_swap_chain();
+    void create_swap_chain_image_views();
+
+
+    //Graphics Pipeline
+    void create_render_targets();
+    void create_render_target_image_views();
+
+	void create_render_pass();
+
+	VkShaderModule create_shader_module(const std::vector<char>& code);
+
+	void create_graphics_pipeline();
+
+	void create_framebuffers(); 
+
+    void draw_frames();
+
+    double get_FPS();
+
+    //Commands
+
+	void create_command_pool();
+	void create_render_command_buffers(); 
+	void create_sync_objects(); 
+
+    void render_command_instructions(uint32_t current_command_buffer);
+
+	VkCommandBuffer begin_one_time_commands();
+    void end_one_time_commands(VkCommandBuffer command_buffer);
+
+    void cmd_copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+
+    //Vulkan Image
+    void create_vulkan_image(   uint32_t width, uint32_t height, 
+                                VkFormat format,
+                                VkImage& image, VkDeviceMemory& memory);
+
+    //Misc
+    uint32_t find_memory_type(  uint32_t type_filter, 
+                                VkMemoryPropertyFlags properties);
 };
 
-//Callback function for the debug messenger.
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback
-(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* ptr_callbackData,
-    void* ptr_userData
-)
-{
-    //Prints debug message to console
-    //TODO: Add logging to file.
-    std::cerr << "Validation Layer : " << ptr_callbackData->pMessage << std::endl;
-    return VK_FALSE;       
-}
-
-uint32_t findMemoryType(VkPhysicalDevice device, uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
-void destroy_debug_utils_messenger_EXT
-(
-    VkInstance instance, 
-    VkDebugUtilsMessengerEXT debug_messenger,
-    const VkAllocationCallbacks* ptr_allocator
-);
+#include "VulkanTexture.hpp"

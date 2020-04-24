@@ -1,18 +1,6 @@
-
-#include <set>
-
-#include "vulkan/vulkan.h"
 #include "Vulkan.hpp"
 
-
-//Holds the device extensions we'll need.
-const std::vector<const char*> required_device_extensions =
-{
-
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
-
-void VulkanHolder::windowInit() //Inits and creates SDL Window.
+void Vulkan::window_init() //Inits and creates SDL Window.
 {
     ptr_window = SDL_CreateWindow( "Foffonso's Vulkan Experiment",  
                                     SDL_WINDOWPOS_UNDEFINED, 
@@ -27,36 +15,17 @@ void VulkanHolder::windowInit() //Inits and creates SDL Window.
     }
 }
 
-void VulkanHolder::createSurface() //Creates a surface compatible with Vulkan for use with the window.
+void Vulkan::create_surface() //Creates a surface compatible with Vulkan for use with the window.
 {
-    if(SDL_Vulkan_CreateSurface(ptr_window, vk_instance, &vk_surface) != SDL_TRUE)
+    if(SDL_Vulkan_CreateSurface(ptr_window, instance, &surface) != SDL_TRUE)
     {
         throw std::runtime_error("Error creating window surface.");
     }    
 }
 
-void VulkanHolder::vulkanInit()  //Initializes all of Vulkan.
+void Vulkan::create_vulkan_instance()  //Creates a vulkan instance.
 {
-    createVulkanInstance();
-    setup_debug_messenger();
-    createSurface();
-    pickPhysicalDevice();
-    createLogicalDevice();
-    createSwapChain();
-    createSwapChainImageViews();
-    createRenderTargets();
-    createRenderTargetImageViews();
-    createRenderPass();
-    createGraphicsPipeline();
-    createFramebuffers();
-    createCommandPool();
-    createCommandBuffers();
-    createSyncObjects();
-}
-
-void VulkanHolder::createVulkanInstance()  //Creates a vulkan instance.
-{
-    if(vk_enableValidationLayers && !check_validation_layer_support()) //Throw error if validation layers are not available.
+    if(enable_validation_layers && !check_validation_layer_support()) //Throw error if validation layers are not available.
     {
         throw std::runtime_error("Validation layers requested but not available.");
     }    
@@ -73,14 +42,14 @@ void VulkanHolder::createVulkanInstance()  //Creates a vulkan instance.
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo; //You need application Information to create instance.
 
-    auto extensions = getRequiredExtensions(); //Get all extensions required to create instance.
+    auto extensions = get_required_extensions(); //Get all extensions required to create instance.
 
     createInfo.enabledExtensionCount = static_cast<unsigned int>(extensions.size()); //Tell the instance creator to enable the required extensions
     createInfo.ppEnabledExtensionNames = extensions.data();
     
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo; //Struct to hold the Debug Messenger Create Informations
 
-    if(vk_enableValidationLayers) //If validation layers are enabled (debug build)
+    if(enable_validation_layers) //If validation layers are enabled (debug build)
     {
         createInfo.enabledLayerCount = static_cast<unsigned int>(validation_layers.size()); //Configure the instance Create info struct to include the validation layers requested.
         createInfo.ppEnabledLayerNames = validation_layers.data();                          //They should exist, since their existance was tested earlier.
@@ -102,14 +71,14 @@ void VulkanHolder::createVulkanInstance()  //Creates a vulkan instance.
 
     vkEnumerateInstanceExtensionProperties(nullptr, &vk_extensionCount, vk_extensions.data());
     */
-    if(vkCreateInstance(&createInfo, nullptr, &vk_instance) != VK_SUCCESS)
+    if(vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create Vulkan Instance!");
     }    
 }
 
 //TODO: Check the differences between instance extensions and normal extensions, is there even such a thing?
-std::vector<const char*> VulkanHolder::getRequiredExtensions() //Returns all the extensions requested and required by other things like glfw.
+std::vector<const char*> Vulkan::get_required_extensions() //Returns all the extensions requested and required by other things like glfw.
 {                                                               //This specific case doesnt ask for any other extensions other than the ones required by glfw.
     uint32_t SDLExtensionCount = UINT32_MAX;
     std::vector<const char *> extensions;
@@ -126,7 +95,7 @@ std::vector<const char*> VulkanHolder::getRequiredExtensions() //Returns all the
         throw std::runtime_error("Could not get info about what SDL requires as Vulkan extensions.");
     }
 
-    if(vk_enableValidationLayers)   //If validation layer build we need to add an extension for it.
+    if(enable_validation_layers)   //If validation layer build we need to add an extension for it.
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
@@ -135,7 +104,7 @@ std::vector<const char*> VulkanHolder::getRequiredExtensions() //Returns all the
 }
 
 //Gets the indices for the queue families on a physical device.
-QueueFamilyIndices VulkanHolder::findQueueFamilies(VkPhysicalDevice device) 
+QueueFamilyIndices Vulkan::find_queue_families(VkPhysicalDevice device) 
 {
     QueueFamilyIndices indices;
 
@@ -151,7 +120,7 @@ QueueFamilyIndices VulkanHolder::findQueueFamilies(VkPhysicalDevice device)
     for(const auto& queueFamily : queueFamilies)
     {
         VkBool32 presentSupport;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vk_surface, &presentSupport); //Check if current queue family includes Surface Support.
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport); //Check if current queue family includes Surface Support.
 
         if(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)  //If queefamily is a graphics queue
         {
@@ -177,10 +146,10 @@ QueueFamilyIndices VulkanHolder::findQueueFamilies(VkPhysicalDevice device)
     return indices;
 }
 
-void VulkanHolder::pickPhysicalDevice() //Choose Physical device to use.
+void Vulkan::pick_physical_device() //Choose Physical device to use.
 {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(vk_instance, &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
     if(deviceCount == 0)
     {
@@ -188,18 +157,18 @@ void VulkanHolder::pickPhysicalDevice() //Choose Physical device to use.
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(vk_instance, &deviceCount, devices.data());
+    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
     for(const auto& device : devices)
     {
-        if(isDeviceSuitable(device)) //Checks if the current device is suitable.
+        if(is_device_suitable(device)) //Checks if the current device is suitable.
         {
-            vk_physicalDevice = device;
+            physical_device = device;
             break;
         }
     }
 
-    if(vk_physicalDevice == VK_NULL_HANDLE) //If none found, throw error.
+    if(physical_device == VK_NULL_HANDLE) //If none found, throw error.
     {
         throw std::runtime_error("Unable to find suitable GPU.");
     }
@@ -207,7 +176,7 @@ void VulkanHolder::pickPhysicalDevice() //Choose Physical device to use.
 
 //Checks if device supports all extensions we want.
 //TODO: Should I add the glfw required extensions here as well?
-bool VulkanHolder::checkDeviceExtensionSupport(VkPhysicalDevice device)
+bool Vulkan::check_device_extension_support(VkPhysicalDevice device)
 {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -227,7 +196,7 @@ bool VulkanHolder::checkDeviceExtensionSupport(VkPhysicalDevice device)
 }
 
 //Check if the device is suitable for us
-bool VulkanHolder::isDeviceSuitable(VkPhysicalDevice device)
+bool Vulkan::is_device_suitable(VkPhysicalDevice device)
 {
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -235,15 +204,15 @@ bool VulkanHolder::isDeviceSuitable(VkPhysicalDevice device)
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
-    QueueFamilyIndices queueIndices = findQueueFamilies(device);
+    QueueFamilyIndices queueIndices = find_queue_families(device);
 
-    bool hasRequiredDeviceExtensions = checkDeviceExtensionSupport(device);
+    bool hasRequiredDeviceExtensions = check_device_extension_support(device);
 
     bool swapChainAdequate = false;
 
     if(hasRequiredDeviceExtensions)
     {
-        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device); //Checks if the device supports swapchains.
+        SwapChainSupportDetails swapChainSupport = query_swap_chain_support(device); //Checks if the device supports swapchains.
 
         swapChainAdequate = !swapChainSupport.formats.empty() && 
                             !swapChainSupport.presentModes.empty();
@@ -255,9 +224,9 @@ bool VulkanHolder::isDeviceSuitable(VkPhysicalDevice device)
 }
 
 //Creates the logical device for the physical device we chose.
-void VulkanHolder::createLogicalDevice()
+void Vulkan::create_logical_device()
 {
-    QueueFamilyIndices indices = findQueueFamilies(vk_physicalDevice);
+    QueueFamilyIndices indices = find_queue_families(physical_device);
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
@@ -284,7 +253,7 @@ void VulkanHolder::createLogicalDevice()
     createInfo.enabledExtensionCount = static_cast<uint32_t>(required_device_extensions.size());
     createInfo.ppEnabledExtensionNames = required_device_extensions.data();
 
-    if(vk_enableValidationLayers)
+    if(enable_validation_layers)
     {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
         createInfo.ppEnabledLayerNames = validation_layers.data();
@@ -294,74 +263,12 @@ void VulkanHolder::createLogicalDevice()
         createInfo.enabledLayerCount = 0;
     }
 
-    if(vkCreateDevice(vk_physicalDevice, &createInfo, nullptr, &vk_logicalDevice) != VK_SUCCESS)
+    if(vkCreateDevice(physical_device, &createInfo, nullptr, &logical_device) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create Vulkan Logical Device.");
     }
 
-    vkGetDeviceQueue(vk_logicalDevice, indices.graphicsFamily.value(), 0, &vk_graphicsQueue);
-    vkGetDeviceQueue(vk_logicalDevice, indices.presentFamily.value(), 0, &vk_presentQueue); //Gets the device queues and puts them on the designated holders.
+    vkGetDeviceQueue(logical_device, indices.graphicsFamily.value(), 0, &graphics_queue);
+    vkGetDeviceQueue(logical_device, indices.presentFamily.value(), 0, &present_queue); //Gets the device queues and puts them on the designated holders.
 }
 
-//Deallocates everything that was allocated.
-void VulkanHolder::cleanup()
-{
-    for(auto timer : vk_swapTimers)
-    {
-        delete timer;
-    }
-
-    vkDeviceWaitIdle(vk_logicalDevice);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
-    {
-        vkDestroySemaphore(vk_logicalDevice, vk_renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(vk_logicalDevice, vk_imageAvailableSemaphores[i], nullptr);
-        vkDestroyFence(vk_logicalDevice, vk_inFlightFences[i], nullptr);
-    }
-
-    vkDestroyCommandPool(vk_logicalDevice, vk_commandPool, nullptr);
-
-    for (auto framebuffer : vk_renderTargetFramebuffers) 
-    {
-        vkDestroyFramebuffer(vk_logicalDevice, framebuffer, nullptr);
-    }
-
-    vkDestroyPipeline(vk_logicalDevice, vk_graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(vk_logicalDevice, vk_pipelineLayout, nullptr);
-    vkDestroyRenderPass(vk_logicalDevice, vk_renderPass, nullptr);
-
-    for (auto renderTargetMem : vk_renderTargetDeviceMemory) 
-    {
-        vkFreeMemory(vk_logicalDevice, renderTargetMem, nullptr);
-    }
-
-    for (auto renderTarget : vk_renderTargetImages) 
-    {
-        vkDestroyImage(vk_logicalDevice, renderTarget, nullptr);
-    }
-
-    for (auto renderTargetImageView : vk_renderTargetImageViews) 
-    {
-        vkDestroyImageView(vk_logicalDevice, renderTargetImageView, nullptr);
-    }
-   
-    for (auto imageView : vk_swapChainImageViews) 
-    {
-        vkDestroyImageView(vk_logicalDevice, imageView, nullptr);
-    }
-   
-    vkDestroySwapchainKHR(vk_logicalDevice, vk_swapChain, nullptr);
-    vkDestroyDevice(vk_logicalDevice, nullptr);
-
-     if(vk_enableValidationLayers)
-    {
-        destroy_debug_utils_messenger_EXT(vk_instance, vk_debugMessenger, nullptr);
-    }
-
-    vkDestroySurfaceKHR(vk_instance, vk_surface, nullptr);
-    vkDestroyInstance(vk_instance, nullptr);
-
-    SDL_DestroyWindow(ptr_window);
-    SDL_Quit();
-}
