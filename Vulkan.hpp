@@ -154,9 +154,27 @@ public:
 	VkCommandBuffer begin_one_time_commands();
     void end_one_time_commands(VkCommandBuffer command_buffer);
 
-    void cmd_copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+    void exec_copy_buffer_cmd(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
-    //Vulkan Image
+
+    void transition_image_layout_cmd(   VkCommandBuffer command_buffer,
+                                        VkImage image, VkFormat format, 
+                                        VkImageLayout old_layout,
+                                        VkImageLayout new_layout);
+
+    void exec_transition_image_layout_cmd(  VkImage image, VkFormat format, 
+                                            VkImageLayout old_layout,
+                                            VkImageLayout new_layout);
+
+    void exec_copy_buffer_to_image_cmd( VkBuffer buffer, VkImage image, 
+                                        uint32_t width, uint32_t height);
+    
+    //Buffer
+    void create_buffer( VkDeviceSize size, VkBufferUsageFlags usage,
+                        VkMemoryPropertyFlags properties,
+                        VkBuffer& buffer, VkDeviceMemory& memory);
+
+    //Image
     void create_vulkan_image(   uint32_t width, uint32_t height, 
                                 VkFormat format,
                                 VkImage& image, VkDeviceMemory& memory);

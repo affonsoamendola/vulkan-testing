@@ -4,10 +4,12 @@
 VulkanTexture::VulkanTexture(	Vulkan* vulkan,
 								const char* texture_file)
 {
-	VkImage texture_image;
-	VkDeviceMemory device_memory;
+	vulkan_instance = vulkan;
+	image_format = VK_FORMAT_B8G8R8A8_UINT;
 
 	SDL_Surface* img_surface = IMG_Load(texture_file);
+	uint32_t width = img_surface->w;
+	uint32_t height = img_surface->h;
 
 	if(img_surface == NULL)
 	{
@@ -28,12 +30,43 @@ VulkanTexture::VulkanTexture(	Vulkan* vulkan,
 	SDL_FreeFormat(sdl_format);
 	SDL_FreeSurface(img_surface);
 
-	vulkan->create_vulkan_image(	converted_surface->w, converted_surface->h,
-									VK_FORMAT_B8G8R8A8_UINT,
-									texture_image, device_memory);
+	vulkan->create_vulkan_image(	width, height,
+									image_format,
+									image, device_memory);
+
+	VkDeviceSize image_size = width * height * 4;
 
 	VkBuffer staging_buffer;
 	VkDeviceMemory staging_buffer_memory;
+
+	vulkan->create_buffer(	image_size, 
+							VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+							staging_buffer, staging_buffer_memory);
+
+	void* data;
+
+	vkMapMemory(vulkan->logical_device, staging_buffer_memory, 0, image_size, 0, &data);
+		memcpy(data, converted_surface->pixels, static_cast<size_t>(image_size));
+	vkUnmapMemory(vulkan->logical_device, staging_buffer_memory);
+
+	SDL_FreeSurface(converted_surface);
+
+	vulkan->exec_copy_buffer_to_image_cmd(	staging_buffer, image,
+											width, height);
+
+	image_extent = {width, height};
+
+
+	vkDestroyBuffer(vulkan->logical_device, staging_buffer, nullptr);
+	vkFreeMemory(vulkan->logical_device, staging_buffer_memory, nullptr);
+}
+
+//Destroys a texture object
+VulkanTexture::~VulkanTexture()
+{
+	vkDestroyImage(vulkan_instance->logical_device, image, nullptr);
+	vkFreeMemory(vulkan_instance->logical_device, device_memory, nullptr);
 }
 
 void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite, 

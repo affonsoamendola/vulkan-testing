@@ -10,6 +10,8 @@ struct VulkanTexture
 	VulkanTexture(Vulkan* vulkan, const char* texture_file);
 	~VulkanTexture();
 
+	Vulkan* 		vulkan_instance;
+
 	VkImage 		image;
 	VkExtent2D 		image_extent;
 	VkFormat		image_format;
