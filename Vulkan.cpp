@@ -19,24 +19,30 @@ Vulkan::Vulkan()
     create_command_pool();
     create_render_command_buffers();
     create_sync_objects();
+
+    test = new VulkanTexture(this, "dopefish.png");
+
+    sprite = new VulkanSprite(  test, 
+                                {0,0,128,128}, 
+                                {10,10,128,128});
+
+    sprite_registry.register_sprite(sprite, 0);
 }
 
 //Deallocates everything that was allocated by vulkan.
 Vulkan::~Vulkan()
 {
+    vkDeviceWaitIdle(logical_device);
+
     for(auto timer : swap_timers)
     {
         delete timer;
     }
 
-    vkDeviceWaitIdle(logical_device);
+    delete sprite;
+    delete test;
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
-    {
-        vkDestroySemaphore(logical_device, render_finished_semaphores[i], nullptr);
-        vkDestroySemaphore(logical_device, image_available_semaphores[i], nullptr);
-        vkDestroyFence(logical_device, in_flight_fences[i], nullptr);
-    }
+    destroy_sync_objects();
 
     vkDestroyCommandPool(logical_device, command_pool, nullptr);
 

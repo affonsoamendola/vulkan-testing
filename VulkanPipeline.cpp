@@ -1,6 +1,7 @@
 #include "Vulkan.hpp"
 
 //Creates render targets for each swapchain Image.
+//TODO: Change this to use VulkanImage()
 void Vulkan::create_render_targets()
 {
     render_target_images.resize(swap_chain_images.size());
@@ -24,6 +25,7 @@ void Vulkan::create_render_targets()
         create_info.samples = VK_SAMPLE_COUNT_1_BIT;
         create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
         create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -345,42 +347,46 @@ void Vulkan::draw_frames()
     {
         vkWaitForFences(logical_device, 1, &images_in_flight[imageIndex], VK_TRUE, UINT64_MAX);
     }
+
+    vkFreeCommandBuffers(logical_device, command_pool, 1, &command_buffers_dynamic[imageIndex]);
+
     // Mark the image as now being in use by this frame
     images_in_flight[imageIndex] = in_flight_fences[current_frame];
 
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    //Tell Queue to wait for the image aquisition when it reaches the color attachment output stage.
-    VkSemaphore waitSemaphores[] = {image_available_semaphores[current_frame]};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-
-    //Tells the queue to execture the commandbuffer previously define for the imageIndex.
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &command_buffers[imageIndex];
-
-    //Tell GPU to signal the vk_kenderFinishedSemaphore for this framebuffer when that operation is done
-    VkSemaphore signalSemaphores[] = {render_finished_semaphores[current_frame]};
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-    
     //Resets the current frame fence.
     vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
 
-    //Sends the command buffer to the graphics queue, to be processed, sets fence when done.
-    if (vkQueueSubmit(graphics_queue, 1, &submitInfo,  in_flight_fences[current_frame]) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to submit draw command buffer.");
-    }
+    //Queues the start section of the rendering part. Waits for the image Available semaphore
+    queue_submit(   graphics_queue,
+                    &command_buffers_start[imageIndex],
+                    image_available_semaphores[current_frame], 
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_start_finished_semaphores[current_frame],
+                    VK_NULL_HANDLE);
+
+    command_buffers_dynamic[imageIndex] = dynamic_render_cmd(imageIndex);
+
+    queue_submit(   graphics_queue,
+                    &command_buffers_dynamic[imageIndex],
+                    render_start_finished_semaphores[current_frame],
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_dynamic_finished_semaphores[current_frame],
+                    VK_NULL_HANDLE);
+
+    //Queues the end section of the rendering part, waits for the dynamic part to finish, signals the render end section
+    queue_submit(   graphics_queue,
+                    &command_buffers_end[imageIndex],
+                    render_dynamic_finished_semaphores[current_frame],
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_end_finished_semaphores[current_frame],
+                    in_flight_fences[current_frame]);
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
+    VkSemaphore ptr_wait_semaphores[] = {render_end_finished_semaphores[current_frame]};
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = signalSemaphores;
+    presentInfo.pWaitSemaphores = ptr_wait_semaphores;
 
     VkSwapchainKHR swapChains[] = {swap_chain};
     presentInfo.swapchainCount = 1;
@@ -392,7 +398,7 @@ void Vulkan::draw_frames()
     vkQueuePresentKHR(present_queue, &presentInfo);
     current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
-    std::cout << "FPS = " << get_FPS() << std::endl;
+    //std::cout << "FPS = " << get_FPS() << std::endl;
     swap_timers[current_frame]->start_timer();
 }
 

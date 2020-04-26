@@ -20,33 +20,41 @@ void Vulkan::create_command_pool()
 //Creates and allocates the command buffers for each framebuffer.
 void Vulkan::create_render_command_buffers() 
 {   
-    command_buffers.resize(render_target_framebuffers.size());
+    command_buffers_start.resize(render_target_framebuffers.size());
+    command_buffers_dynamic.resize(render_target_framebuffers.size());
+    command_buffers_end.resize(render_target_framebuffers.size());
 
     VkCommandBufferAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = command_pool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = (uint32_t) command_buffers.size();
+    allocInfo.commandBufferCount = (uint32_t) render_target_framebuffers.size();
 
-    if (vkAllocateCommandBuffers(logical_device, &allocInfo, command_buffers.data()) != VK_SUCCESS) 
+    if (vkAllocateCommandBuffers(logical_device, &allocInfo, command_buffers_start.data()) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to allocate command buffers.");
     }
 
-    for (size_t i = 0; i < command_buffers.size(); i++) 
+    if (vkAllocateCommandBuffers(logical_device, &allocInfo, command_buffers_end.data()) != VK_SUCCESS) 
     {
-        render_command_instructions(i);
+        throw std::runtime_error("Failed to allocate command buffers.");
+    }
+
+    for (size_t i = 0; i < render_target_framebuffers.size(); i++) 
+    {
+        start_render_cmd(i);
+        end_render_cmd(i);
     }
 }
 
 //Holds the instructions executed every loop of the renderer.
-void Vulkan::render_command_instructions(uint32_t currentCommandBuffer)
+void Vulkan::start_render_cmd(uint32_t current_framebuffer)
 {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     //Begin the GPU command sequence.
-    if (vkBeginCommandBuffer(command_buffers[currentCommandBuffer], &beginInfo) != VK_SUCCESS) 
+    if (vkBeginCommandBuffer(command_buffers_start[current_framebuffer], &beginInfo) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to begin recording command buffer.");
     }
@@ -54,7 +62,7 @@ void Vulkan::render_command_instructions(uint32_t currentCommandBuffer)
     VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = render_pass;
-    renderPassInfo.framebuffer = render_target_framebuffers[currentCommandBuffer];
+    renderPassInfo.framebuffer = render_target_framebuffers[current_framebuffer];
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = render_target_image_extent;
 
@@ -63,44 +71,47 @@ void Vulkan::render_command_instructions(uint32_t currentCommandBuffer)
     renderPassInfo.pClearValues = &clearColor;
 
     //Buffers the needed commands to render the 3D part.
-    vkCmdBeginRenderPass(command_buffers[currentCommandBuffer], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(command_buffers[currentCommandBuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-        vkCmdDraw(command_buffers[currentCommandBuffer], 3, 1, 0, 0);
-    vkCmdEndRenderPass(command_buffers[currentCommandBuffer]);
-    
-    for(auto layer_vector : sprite_registry.registry)
-    {
-        for(auto sprite : layer_vector)
-        {
-            VkImageBlit image_blit = {};
-            imageBlit.srcSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-            imageBlit.srcOffsets[0] = {sprite->source.offset.x, 
-                                       sprite->source.offset.y, 0};
-            imageBlit.srcOffsets[1] = {static_cast<int32_t>(sprite->source.extent.width), 
-                                       static_cast<int32_t>(sprite->source.extent.height), 1};
+    vkCmdBeginRenderPass(command_buffers_start[current_framebuffer], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(command_buffers_start[current_framebuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+        vkCmdDraw(command_buffers_start[current_framebuffer], 3, 1, 0, 0);
+    vkCmdEndRenderPass(command_buffers_start[current_framebuffer]);
 
-            imageBlit.dstSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
-            imageBlit.dstOffsets[0] = {sprite->destination.offset.x, 
-                                       sprite->destination.offset.y, 0};
-            imageBlit.dstOffsets[1] = {static_cast<int32_t>(sprite->destination.extent.width), 
-                                       static_cast<int32_t>(sprite->destination.extent.height), 1};
-            //Queues the actual blitting.
-            vkCmdBlitImage( command_buffers[currentCommandBuffer], 
-                            sprite->texture.image,
-                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                            render_target_images[currentCommandBuffer],
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                            1,
-                            &imageBlit,
-                            VK_FILTER_NEAREST);
-        }
-    }  
-    
-    transition_image_layout_cmd(    command_buffers[currentCommandBuffer],
-                                    swap_chain_images[currentCommandBuffer], 
+    transition_image_layout_cmd(    command_buffers_start[current_framebuffer],
+                                    render_target_images[current_framebuffer], 
+                                    swap_chain_image_format, 
+                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    //End the GPU instructions.
+    if (vkEndCommandBuffer(command_buffers_start[current_framebuffer]) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to record command buffer.");
+    }
+}
+
+//Holds the instructions executed every loop of the renderer.
+void Vulkan::end_render_cmd(uint32_t current_framebuffer)
+{
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    //Begin the GPU command sequence.
+    if (vkBeginCommandBuffer(command_buffers_end[current_framebuffer], &beginInfo) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to begin recording command buffer.");
+    }
+
+    transition_image_layout_cmd(    command_buffers_end[current_framebuffer],
+                                    render_target_images[current_framebuffer], 
+                                    swap_chain_image_format, 
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+    transition_image_layout_cmd(    command_buffers_end[current_framebuffer],
+                                    swap_chain_images[current_framebuffer], 
                                     swap_chain_image_format, 
                                     VK_IMAGE_LAYOUT_UNDEFINED,
                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
 
 
     VkImageBlit imageBlit = {};
@@ -115,27 +126,74 @@ void Vulkan::render_command_instructions(uint32_t currentCommandBuffer)
                                static_cast<int32_t>(swap_chain_image_extent.height), 1};
 
     //Queues the actual blitting.
-    vkCmdBlitImage( command_buffers[currentCommandBuffer], 
-                    render_target_images[currentCommandBuffer],
+    vkCmdBlitImage( command_buffers_end[current_framebuffer], 
+                    render_target_images[current_framebuffer],
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    swap_chain_images[currentCommandBuffer],
+                    swap_chain_images[current_framebuffer],
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     1,
                     &imageBlit,
                     VK_FILTER_NEAREST);
 
 
-    transition_image_layout_cmd(    command_buffers[currentCommandBuffer],
-                                    swap_chain_images[currentCommandBuffer], 
+    transition_image_layout_cmd(    command_buffers_end[current_framebuffer],
+                                    swap_chain_images[current_framebuffer], 
                                     swap_chain_image_format, 
                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                     VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //End the GPU instructions.
-    if (vkEndCommandBuffer(command_buffers[currentCommandBuffer]) != VK_SUCCESS) 
+    if (vkEndCommandBuffer(command_buffers_end[current_framebuffer]) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to record command buffer.");
     }
+}
+
+//Holds the instructions executed every loop of the renderer.
+VkCommandBuffer Vulkan::dynamic_render_cmd(uint32_t current_framebuffer)
+{
+
+    VkCommandBuffer dynamic_instructions = begin_one_time_commands();
+    
+    for(auto layer_vector : sprite_registry.registry)
+    {
+        for(auto sprite : layer_vector)
+        {
+            VkImageBlit image_blit = {};
+            image_blit.srcSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
+            image_blit.srcOffsets[0] = {sprite->source.offset.x, 
+                                        sprite->source.offset.y, 
+                                        0};
+            image_blit.srcOffsets[1] = {static_cast<int32_t>(sprite->source.extent.width + sprite->source.offset.x), 
+                                        static_cast<int32_t>(sprite->source.extent.height + sprite->source.offset.y), 
+                                        1};
+
+            image_blit.dstSubresource = VULKAN_SUBRESOURCE_LAYER_COLOR;
+            image_blit.dstOffsets[0] = {sprite->destination.offset.x, 
+                                        sprite->destination.offset.y, 
+                                        0};
+            image_blit.dstOffsets[1] = {static_cast<int32_t>(sprite->destination.extent.width + sprite->destination.offset.x), 
+                                        static_cast<int32_t>(sprite->destination.extent.height + sprite->destination.offset.y), 
+                                        1};
+            //Queues the actual blitting.
+            vkCmdBlitImage( dynamic_instructions, 
+                            sprite->ptr_texture->image,
+                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                            render_target_images[current_framebuffer],
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            1,
+                            &image_blit,
+                            VK_FILTER_NEAREST);
+        }
+    }   
+
+    //End the GPU instructions.
+    if (vkEndCommandBuffer(dynamic_instructions) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to record command buffer.");
+    }
+    
+    return dynamic_instructions;
 }
 
 //Begins and allocates a command buffer for one time commands.
@@ -251,6 +309,30 @@ void Vulkan::transition_image_layout_cmd(   VkCommandBuffer command_buffer,
         source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     }
+    else if(old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if(old_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+    {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if(old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+    {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
     else if(old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
     {
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -293,29 +375,35 @@ void Vulkan::exec_transition_image_layout_cmd(  VkImage image, VkFormat format,
     end_one_time_commands(command_buffer);
 }
 
-//Creates the syncronization objects we'll use.
-void Vulkan::create_sync_objects() 
+void Vulkan::queue_submit(  VkQueue queue,
+                            VkCommandBuffer* ptr_buffer,
+                            VkSemaphore wait_semaphore, 
+                            VkPipelineStageFlags wait_stage,
+                            VkSemaphore signal_semaphore,
+                            VkFence fence)
 {
-    image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
-    images_in_flight.resize(swap_chain_images.size(), VK_NULL_HANDLE);
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphoreCreateInfo semaphoreInfo = {};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    //Tell Queue to wait for the image aquisition when it reaches the color attachment output stage.
+    VkSemaphore wait_semaphores[] = {wait_semaphore};
+    VkPipelineStageFlags wait_stages[] = {wait_stage};
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = wait_semaphores;
+    submit_info.pWaitDstStageMask = wait_stages;
 
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    //Tells the queue to execture the commandbuffer previously define for the imageIndex.
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = ptr_buffer;
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    //Tell GPU to signal the vk_kenderFinishedSemaphore for this framebuffer when that operation is done
+    VkSemaphore signal_semaphores[] = {signal_semaphore};
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = signal_semaphores;
+
+     //Sends the command buffer to the graphics queue, to be processed, sets fence when done.
+    if (vkQueueSubmit(queue, 1, &submit_info, fence) != VK_SUCCESS) 
     {
-        if (vkCreateSemaphore(logical_device, &semaphoreInfo, nullptr, &image_available_semaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(logical_device, &semaphoreInfo, nullptr, &render_finished_semaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(logical_device, &fenceInfo, nullptr, &in_flight_fences[i]) != VK_SUCCESS) 
-        {
-
-            throw std::runtime_error("Failed to create semaphores for a frame!");
-        }
+        throw std::runtime_error("Failed to submit draw command buffer.");
     }
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+class Vulkan;
 //Holds a Texture definition, which is composed of an image, 
 //its size and format, and its location on device memory.
 //
@@ -25,16 +26,23 @@ struct VulkanTexture
 //Without any filters applied.
 struct VulkanSprite
 {
-	VulkanTexture 	texture;
+	VulkanTexture* 	ptr_texture;
 	VkRect2D		source;
 	VkRect2D		destination;
 	bool 			pixel_perfect;
+
+	VulkanSprite(	VulkanTexture* t_ptr_texture, 
+					VkRect2D t_source, 
+					VkRect2D t_destination, 
+					bool t_pixel_perfect=true);
 };
 
 struct VulkanSpriteRegistry
 {
 	int registered_layers = 0;
 	std::vector<std::vector<VulkanSprite*>> registry;
+
+	VulkanSpriteRegistry();
 
 	void register_sprite(VulkanSprite* ptr_sprite, uint32_t layer);
 };

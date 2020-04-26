@@ -33,7 +33,7 @@ void main_loop()
     while(is_game_running)
     {
         input->update();
-        vulkan->update();
+        vulkan->draw_frames();
     }
 }   
 

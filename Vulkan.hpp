@@ -23,6 +23,7 @@
 #include "VulkanDebug.hpp"
 #include "VulkanSetup.hpp"
 #include "VulkanSwap.hpp"
+#include "VulkanTexture.hpp"
 
 #include "Timer.hpp"
 #include "Util.hpp"
@@ -80,15 +81,22 @@ public:
     
     VkCommandPool       command_pool;
 
-    std::vector<VkCommandBuffer> command_buffers;
+    VulkanTexture*      test;
+    VulkanSprite*       sprite;
+
+    std::vector<VkCommandBuffer> command_buffers_start;
+    std::vector<VkCommandBuffer> command_buffers_dynamic;
+    std::vector<VkCommandBuffer> command_buffers_end;
 
     std::vector<VkSemaphore> image_available_semaphores;
-    std::vector<VkSemaphore> render_finished_semaphores;
+    std::vector<VkSemaphore> render_start_finished_semaphores;
+    std::vector<VkSemaphore> render_dynamic_finished_semaphores;
+    std::vector<VkSemaphore> render_end_finished_semaphores;
     
     std::vector<VkFence> in_flight_fences;
     std::vector<VkFence> images_in_flight;
 
-    //VulkanSpriteRegistry spriteRegistry;
+    VulkanSpriteRegistry sprite_registry;
 
     size_t current_frame = 0;
 
@@ -126,7 +134,6 @@ public:
     void create_swap_chain();
     void create_swap_chain_image_views();
 
-
     //Graphics Pipeline
     void create_render_targets();
     void create_render_target_image_views();
@@ -144,12 +151,13 @@ public:
     double get_FPS();
 
     //Commands
-
 	void create_command_pool();
 	void create_render_command_buffers(); 
-	void create_sync_objects(); 
+	
 
-    void render_command_instructions(uint32_t current_command_buffer);
+    void start_render_cmd(uint32_t current_framebuffer);
+    VkCommandBuffer dynamic_render_cmd(uint32_t current_framebuffer);
+    void end_render_cmd(uint32_t current_framebuffer);
 
 	VkCommandBuffer begin_one_time_commands();
     void end_one_time_commands(VkCommandBuffer command_buffer);
@@ -176,8 +184,22 @@ public:
 
     //Image
     void create_vulkan_image(   uint32_t width, uint32_t height, 
-                                VkFormat format,
+                                VkFormat format, 
+                                VkImageUsageFlags usage, 
                                 VkImage& image, VkDeviceMemory& memory);
+
+    //Sync
+    void create_semaphore(VkSemaphore& semaphore);
+    void create_fence(VkFence& fence);
+    void queue_submit(  VkQueue queue,
+                        VkCommandBuffer* ptr_buffer,
+                        VkSemaphore wait_semaphore, 
+                        VkPipelineStageFlags wait_stage,
+                        VkSemaphore signal_semaphore,
+                        VkFence fence);
+
+    void create_sync_objects(); 
+    void destroy_sync_objects();
 
     //Misc
     uint32_t find_memory_type(  uint32_t type_filter, 
