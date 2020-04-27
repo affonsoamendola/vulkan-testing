@@ -19,11 +19,19 @@
 #include <set>
 #include <fstream>
 #include <cstddef>
+#include <array>
+
+#include "Vector2f.hpp"
+#include "Vector3f.hpp"
 
 #include "VulkanDebug.hpp"
 #include "VulkanSetup.hpp"
 #include "VulkanSwap.hpp"
 #include "VulkanTexture.hpp"
+#include "VulkanSprite.hpp"
+#include "VulkanFont.hpp"
+#include "VulkanVertex.hpp"
+#include "VulkanUniformBuffer.hpp"
 
 #include "Timer.hpp"
 #include "Util.hpp"
@@ -65,8 +73,6 @@ public:
     VkImageLayout               renter_target_image_layout;
     std::vector<VkFramebuffer>  render_target_framebuffers;
 
-    std::vector<Timer*>          swap_timers;
-
     VkSwapchainKHR        swap_chain;
     std::vector<VkImage>  swap_chain_images;
     VkFormat              swap_chain_image_format;
@@ -74,15 +80,17 @@ public:
     VkExtent2D            swap_chain_image_extent;
 
     std::vector<VkImageView>    swap_chain_image_views;
-    
+
+    VkDescriptorSetLayout   descriptor_set_layout;
+    VkDescriptorPool        descriptor_pool;
+    std::vector<VkDescriptorSet> descriptor_sets;
+
+
     VkPipelineLayout    pipeline_layout;
     VkPipeline          graphics_pipeline;
     VkRenderPass        render_pass;
     
     VkCommandPool       command_pool;
-
-    VulkanTexture*      test;
-    VulkanSprite*       sprite;
 
     std::vector<VkCommandBuffer> command_buffers_start;
     std::vector<VkCommandBuffer> command_buffers_dynamic;
@@ -96,7 +104,45 @@ public:
     std::vector<VkFence> in_flight_fences;
     std::vector<VkFence> images_in_flight;
 
-    VulkanSpriteRegistry sprite_registry;
+    std::vector<Vertex> vertices = 
+    {
+        {{0.5,  0.5, -0.5}, {1.0f, 0.0f, 0.0f}},
+        {{0.5, -0.5, -0.5}, {0.0f, 1.0f, 0.0f}},
+        {{-0.5,-0.5, -0.5}, {0.0f, 0.0f, 1.0f}},
+        {{-0.5, 0.5, -0.5}, {1.0f, 1.0f, 1.0f}},
+        {{0.5,  0.5,  0.5}, {0.0f, 0.0f, 1.0f}},
+        {{0.5, -0.5,  0.5}, {1.0f, 1.0f, 1.0f}},
+        {{-0.5,-0.5,  0.5}, {1.0f, 0.0f, 0.0f}},
+        {{-0.5, 0.5,  0.5}, {0.0f, 1.0f, 0.0f}}
+    };
+
+    std::vector<uint32_t> indices = 
+    {
+        3, 0, 1, //front
+        1, 2, 3, 
+        2, 1, 5, //Bot
+        5, 6, 2,
+        5, 4, 7, //back
+        7, 6, 5,
+        4, 0, 3, //top
+        3, 7, 4,
+        0, 4, 5, //Right
+        5, 1, 0,
+        6, 7, 3, //Left
+        3, 2, 6
+    };
+        
+    VkBuffer vertex_buffer;
+    VkDeviceMemory vertex_buffer_memory;
+
+    VkBuffer index_buffer;
+    VkDeviceMemory index_buffer_memory;
+
+    std::vector<VkBuffer> uniform_buffers;
+    std::vector<VkDeviceMemory> uniform_buffers_memory;
+
+    VulkanFont* tiny_font;
+    VulkanSpriteQueue sprite_queue;
 
     size_t current_frame = 0;
 
@@ -146,14 +192,29 @@ public:
 
 	void create_framebuffers(); 
 
+    void cpu_draw_frames(uint32_t current_framebuffer);
     void draw_frames();
 
     double get_FPS();
 
+    void update_uniform_buffer(uint32_t current_image);
+
+    //Vertex Buffer
+    void create_vertex_buffer();
+
+    //Index Buffer
+    void create_index_buffer();
+
+    void create_uniform_buffers();
+
+    //Descriptor Set Layout
+    void create_descriptor_set_layout();
+    void create_descriptor_pool();
+    void create_descriptor_sets();
+
     //Commands
 	void create_command_pool();
 	void create_render_command_buffers(); 
-	
 
     void start_render_cmd(uint32_t current_framebuffer);
     VkCommandBuffer dynamic_render_cmd(uint32_t current_framebuffer);
@@ -200,6 +261,16 @@ public:
 
     void create_sync_objects(); 
     void destroy_sync_objects();
+
+    //CPU Draw Orders
+    void draw_text( VulkanFont& font,
+                    const char * content,
+                    const VkOffset2D& offset,
+                    uint32_t layer);
+    void draw_char( VulkanFont& font,
+                    char content,
+                    const VkOffset2D& offset,
+                    uint32_t layer);
 
     //Misc
     uint32_t find_memory_type(  uint32_t type_filter, 

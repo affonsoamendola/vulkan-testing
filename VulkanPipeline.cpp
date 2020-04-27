@@ -178,13 +178,16 @@ void Vulkan::create_graphics_pipeline()
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+    auto binding_description = Vertex::get_binding_description();
+    auto attribute_descriptions = Vertex::get_attribute_descriptions();
+
     //Tells the pipeline to not care about vertex input. Since we are using hard coded vertexes.
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &binding_description; // Optional
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions.size());
+    vertexInputInfo.pVertexAttributeDescriptions = attribute_descriptions.data(); // Optional
 
     //Tells the pipeline to treat the vertex list as a list of triangles.
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
@@ -263,8 +266,8 @@ void Vulkan::create_graphics_pipeline()
     //Creates the pipeline layout.
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+    pipelineLayoutInfo.setLayoutCount = 1; 
+    pipelineLayoutInfo.pSetLayouts = &descriptor_set_layout; 
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -330,18 +333,53 @@ void Vulkan::create_framebuffers()
     }
 }
 
+//Executed every frame, prepares all the data required by the gpu to draw the frames.
+void Vulkan::cpu_draw_frames(uint32_t current_framebuffer)
+{
+    VkOffset2D off = {10, 20};
+    draw_text(  *tiny_font,
+                "This is Foffonso testing some Vulkan shit.",
+                off,
+                0);
+
+    off = {10, 30};
+    draw_text(  *tiny_font,
+                "I know, amazing right?",
+                off,
+                0);
+
+    off = {10, 40};
+    draw_text(  *tiny_font,
+                "Only took like 2000 lines of code.",
+                off,
+                0);
+
+    off = {10, 60};
+    draw_text(  *tiny_font,
+                "And like a week...",
+                off,
+                0);
+
+    off = {10, 80};
+    draw_text(  *tiny_font,
+                "But it kinda works.",
+                off,
+                0);
+
+
+    update_uniform_buffer(current_framebuffer);
+}
+
 //Loop to draw every frame, ends with a request to present the image.
 void Vulkan::draw_frames()
 {
     //Waits for the fence for the current framebuffer to be signaled
     vkWaitForFences(logical_device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
     
-    swap_timers[current_frame]->stop_timer();
-
     //Gets the next image in the swapbuffer, the one we'll be rendering to.
     uint32_t imageIndex;
     vkAcquireNextImageKHR(logical_device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &imageIndex);
-    
+
     // Check if a previous frame is using this image (i.e. there is its fence to wait on)
     if (images_in_flight[imageIndex] != VK_NULL_HANDLE) 
     {
@@ -355,6 +393,8 @@ void Vulkan::draw_frames()
 
     //Resets the current frame fence.
     vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
+
+    cpu_draw_frames(imageIndex);
 
     //Queues the start section of the rendering part. Waits for the image Available semaphore
     queue_submit(   graphics_queue,
@@ -399,9 +439,11 @@ void Vulkan::draw_frames()
     current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
     //std::cout << "FPS = " << get_FPS() << std::endl;
-    swap_timers[current_frame]->start_timer();
+
+    sprite_queue.clear_queue();   
 }
 
+/*
 double Vulkan::get_FPS()
 {
     double average_frame_time = 0.;
@@ -414,4 +456,83 @@ double Vulkan::get_FPS()
     average_frame_time /= swap_timers.size();
 
     return 1./average_frame_time;
+}
+*/
+//Creates the Vertex buffer
+void Vulkan::create_vertex_buffer()
+{
+    VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+    
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer,
+                    staging_buffer_memory);
+
+    void* data;
+    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+        memcpy(data, vertices.data(), (size_t) buffer_size);
+    vkUnmapMemory(logical_device, staging_buffer_memory);
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    vertex_buffer,
+                    vertex_buffer_memory);
+
+    exec_copy_buffer_cmd(staging_buffer, vertex_buffer, buffer_size);
+
+    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
+    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
+}   
+
+//Creates the Index buffer.
+void Vulkan::create_index_buffer()
+{
+    VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
+    
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer,
+                    staging_buffer_memory);
+
+    void* data;
+    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+        memcpy(data, indices.data(), (size_t) buffer_size);
+    vkUnmapMemory(logical_device, staging_buffer_memory);
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    index_buffer,
+                    index_buffer_memory);
+
+    exec_copy_buffer_cmd(staging_buffer, index_buffer, buffer_size);
+
+    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
+    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
+}
+
+//Creates the Index buffer.
+void Vulkan::create_uniform_buffers()
+{
+    VkDeviceSize buffer_size = sizeof(UniformBufferObject);
+
+    uniform_buffers.resize(swap_chain_images.size());
+    uniform_buffers_memory.resize(swap_chain_images.size());
+
+    for (size_t i = 0; i < swap_chain_images.size(); i++) 
+    {
+        create_buffer(  buffer_size, 
+                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                        uniform_buffers[i], uniform_buffers_memory[i]);
+    }
 }

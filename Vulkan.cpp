@@ -14,34 +14,30 @@ Vulkan::Vulkan()
     create_render_targets();
     create_render_target_image_views();
     create_render_pass();
+    create_descriptor_set_layout();
     create_graphics_pipeline();
     create_framebuffers();
     create_command_pool();
+    create_vertex_buffer();
+    create_index_buffer();
+    create_uniform_buffers();
+    create_descriptor_pool();
+    create_descriptor_sets();
     create_render_command_buffers();
     create_sync_objects();
 
-    test = new VulkanTexture(this, "dopefish.png");
-
-    sprite = new VulkanSprite(  test, 
-                                {0,0,128,128}, 
-                                {10,10,128,128});
-
-    sprite_registry.register_sprite(sprite, 0);
-}
+    VkExtent2D dim = {4, 6};
+    tiny_font = new VulkanFont( this,
+                                dim,
+                                "tiny_font.png");
+};
 
 //Deallocates everything that was allocated by vulkan.
 Vulkan::~Vulkan()
 {
     vkDeviceWaitIdle(logical_device);
 
-    for(auto timer : swap_timers)
-    {
-        delete timer;
-    }
-
-    delete sprite;
-    delete test;
-
+    delete tiny_font;
     destroy_sync_objects();
 
     vkDestroyCommandPool(logical_device, command_pool, nullptr);
@@ -76,6 +72,23 @@ Vulkan::~Vulkan()
     }
    
     vkDestroySwapchainKHR(logical_device, swap_chain, nullptr);
+
+    vkDestroyDescriptorSetLayout(logical_device, descriptor_set_layout, nullptr);
+
+    vkDestroyBuffer(logical_device, vertex_buffer, nullptr);
+    vkFreeMemory(logical_device, vertex_buffer_memory, nullptr);
+    
+    vkDestroyBuffer(logical_device, index_buffer, nullptr);
+    vkFreeMemory(logical_device, index_buffer_memory, nullptr);       
+
+    for(size_t i = 0; i < swap_chain_images.size(); i++)
+    {
+        vkDestroyBuffer(logical_device, uniform_buffers[i], nullptr);
+        vkFreeMemory(logical_device, uniform_buffers_memory[i], nullptr);
+    }
+
+    vkDestroyDescriptorPool(logical_device, descriptor_pool, nullptr);
+
     vkDestroyDevice(logical_device, nullptr);
 
     if(enable_validation_layers)

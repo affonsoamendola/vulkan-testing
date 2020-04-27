@@ -1,21 +1,39 @@
-BINARY = vulkan
-HEADERS = $(wildcard *.hpp)
-OBJS = $(subst .cpp,.o, $(wildcard *.cpp))
-VULKAN_SDK_PATH = /home/affonso/opt/vulkansdk/x86_64
-CFLAGS = -std=c++17 -I$(VULKAN_SDK_PATH)/include -g
+BINARY := vulkan
+SOURCES := $(wildcard *.cpp)
+OBJECTS := $(patsubst %.cpp,%.o,$(SOURCES))
+DEPENDS := $(patsubst %.cpp,%.d,$(SOURCES))
+CXXFLAGS := -std=c++17 -I$(VULKAN_SDK_PATH)/include -g
 LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs sdl2` -lvulkan -lSDL2_image
+SHADERSSOURCES := $(wildcard shaders/*.vert) $(wildcard shaders/*.frag)
+SHADERSOBJ := $(patsubst %.vert,%.spv,$(SHADERSSOURCES)) $(patsubst %.frag,%.spv,$(SHADERSSOURCES))
+# ADD MORE WARNINGS!
+WARNING := 
 
-%.o: %.cpp $(HEADERS)
-	g++ $(CFLAGS) $< -c -o $@ $(LDFLAGS)
+# .PHONY means these rules get executed even if
+# files of those names exist.
+.PHONY: all clean
 
-$(BINARY) : $(OBJS)
-	g++ $(CFLAGS) $(OBJS) $(LDFLAGS) -o $(BINARY) 
+# The first rule is the default, ie. "make",
+# "make all" and "make parking" mean the same
+all: $(BINARY) $(SHADERSOBJ)
 
-.PHONY: test clean
+%.spv: %.frag
+	glslc $^ -o $@
 
-run: $(BINARY)
+%.spv: %.vert
+	glslc $^ -o $@
+
+run: $(BINARY) $(SHADERSOBJ)
 	./$(BINARY)
 
 clean:
-	rm -f $(BINARY)
-	rm -f *.o
+	$(RM) $(OBJECTS) $(DEPENDS) $(BINARY)
+
+# Linking the executable from the object files
+$(BINARY): $(OBJECTS)
+	$(CXX) $(WARNING) $(CXXFLAGS) $(LDFLAGS) $^ -o $@
+
+-include $(DEPENDS)
+
+%.o: %.cpp Makefile
+	$(CXX) $(WARNING) $(CXXFLAGS) $(LDFLAGS) -MMD -MP -c $< -o $@

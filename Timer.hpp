@@ -2,28 +2,18 @@
 
 #include <chrono>
 
-class Timer
+namespace Timer
 {
-private:
-	double _delta_time;
-
-	std::chrono::time_point<std::chrono::high_resolution_clock> timer_start;
-	std::chrono::time_point<std::chrono::high_resolution_clock> timer_stop;
-public:
-
+	static auto start_time = std::chrono::high_resolution_clock::now();
+	
 	inline void start_timer() 
 	{
-		timer_start = std::chrono::high_resolution_clock::now();
+		start_time = std::chrono::high_resolution_clock::now();
 	}
 
-	inline void stop_timer()
+	inline double time() 
 	{
-		timer_stop = std::chrono::high_resolution_clock::now();
-		_delta_time = 0.000000001 * std::chrono::duration_cast<std::chrono::microseconds>(timer_stop - timer_start).count();
+		auto current_time = std::chrono::high_resolution_clock::now();
+		return std::chrono::duration<double, std::chrono::seconds::period>(current_time - start_time).count();
 	}
-
-	inline double delta_time() 
-	{
-		return _delta_time;
-	}
-};
+}

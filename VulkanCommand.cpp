@@ -70,11 +70,20 @@ void Vulkan::start_render_cmd(uint32_t current_framebuffer)
     renderPassInfo.clearValueCount = 1;
     renderPassInfo.pClearValues = &clearColor;
 
+
+
     //Buffers the needed commands to render the 3D part.
     vkCmdBeginRenderPass(command_buffers_start[current_framebuffer], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(command_buffers_start[current_framebuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-        vkCmdDraw(command_buffers_start[current_framebuffer], 3, 1, 0, 0);
-    vkCmdEndRenderPass(command_buffers_start[current_framebuffer]);
+        
+        VkBuffer vertex_buffers[] = {vertex_buffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(command_buffers_start[current_framebuffer], 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffers_start[current_framebuffer], index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(command_buffers_start[current_framebuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_sets[current_framebuffer], 0, nullptr);
+        
+        vkCmdDrawIndexed(command_buffers_start[current_framebuffer], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+   vkCmdEndRenderPass(command_buffers_start[current_framebuffer]);
 
     transition_image_layout_cmd(    command_buffers_start[current_framebuffer],
                                     render_target_images[current_framebuffer], 
@@ -152,10 +161,9 @@ void Vulkan::end_render_cmd(uint32_t current_framebuffer)
 //Holds the instructions executed every loop of the renderer.
 VkCommandBuffer Vulkan::dynamic_render_cmd(uint32_t current_framebuffer)
 {
-
     VkCommandBuffer dynamic_instructions = begin_one_time_commands();
     
-    for(auto layer_vector : sprite_registry.registry)
+    for(auto layer_vector : sprite_queue.queue)
     {
         for(auto sprite : layer_vector)
         {

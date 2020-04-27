@@ -1,9 +1,5 @@
 #pragma once
 
-#include <vector>
-#include <optional>
-#include <vulkan/vulkan.h>
-
 //Holds the device extensions we'll need.
 const std::vector<const char*> required_device_extensions =
 {

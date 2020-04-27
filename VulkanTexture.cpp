@@ -83,32 +83,3 @@ VulkanTexture::~VulkanTexture()
 	vkDestroyImage(vulkan_instance->logical_device, image, nullptr);
 	vkFreeMemory(vulkan_instance->logical_device, device_memory, nullptr);
 }
-
-VulkanSprite::VulkanSprite(	VulkanTexture* t_ptr_texture, 
-							VkRect2D t_source, 
-							VkRect2D t_destination, 
-							bool t_pixel_perfect)
-{
-	ptr_texture = t_ptr_texture;
-	source = t_source;
-	destination = t_destination;
-	pixel_perfect = t_pixel_perfect;
-}
-
-VulkanSpriteRegistry::VulkanSpriteRegistry()
-{
-
-}
-
-void VulkanSpriteRegistry::register_sprite(	VulkanSprite* ptr_sprite, 
-											uint32_t layer)
-{
-	if(layer >= registered_layers)
-	{
-		registry.resize(layer + 1);
-		registered_layers = layer;
-	}
-
-	(registry[layer]).push_back(ptr_sprite);
-}
-

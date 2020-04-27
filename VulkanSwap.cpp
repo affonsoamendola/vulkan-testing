@@ -136,13 +136,6 @@ void Vulkan::create_swap_chain()
 
     swap_chain_image_format = surfaceFormat.format;
     swap_chain_image_extent = extent;
-
-    swap_timers.resize(imageCount);
-
-    for(int i = 0; i < imageCount; i++)
-    {
-        swap_timers[i] = new Timer();
-    }    
 }
 
 //Creates the image views for every swapchain image.
