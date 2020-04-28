@@ -179,12 +179,12 @@ inline Vector2f& Vector2f::operator/=(const float t)
 	return *this;
 }
 
-inline Vector2f translate(const Vector2f& point, const Vector2f& amount)
+inline Vector2f v2_translate(const Vector2f& point, const Vector2f& amount)
 {
 	return point + amount;
 }
 
-inline Vector2f rotate(const Vector2f& point, const float theta)
+inline Vector2f v2_rotate(const Vector2f& point, const float theta)
 {
 	return Vector2f(point.v[0] * cos(theta) - (point.v[1] * sin(theta)),
 					point.v[0] * sin(theta) +  point.v[1] * cos(theta)  );

@@ -350,7 +350,7 @@ void Vulkan::cpu_draw_frames(uint32_t current_framebuffer)
 
     off = {10, 40};
     draw_text(  *tiny_font,
-                "Only took like 2000 lines of code.",
+                "Only took like 4000 lines of code.",
                 off,
                 0);
 

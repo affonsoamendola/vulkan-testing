@@ -29,7 +29,7 @@ Vulkan::Vulkan()
     VkExtent2D dim = {4, 6};
     tiny_font = new VulkanFont( this,
                                 dim,
-                                "tiny_font.png");
+                                "data/tiny_font.png");
 };
 
 //Deallocates everything that was allocated by vulkan.
