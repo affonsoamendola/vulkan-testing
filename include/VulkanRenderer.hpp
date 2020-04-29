@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "vulkan/vulkan.h"
 
 //Holds the details of the swapchain

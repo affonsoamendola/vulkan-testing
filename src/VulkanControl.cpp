@@ -1,6 +1,7 @@
 #include "Vulkan.hpp"
 
 //TODO: Better Documentation
+
 //Creates the command pool
 void Vulkan::create_command_pool()
 {
@@ -16,6 +17,117 @@ void Vulkan::create_command_pool()
         throw std::runtime_error("Failed to create command pool.");
     }
 }   
+
+void Vulkan::create_buffer(     VkDeviceSize size, VkBufferUsageFlags usage,
+                                VkMemoryPropertyFlags properties,
+                                VkBuffer& buffer, VkDeviceMemory& memory)
+{
+    VkBufferCreateInfo buffer_info = {};
+    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size = size;
+    buffer_info.usage = usage;
+    buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if(vkCreateBuffer(logical_device, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create buffer!");
+    }
+
+    VkMemoryRequirements mem_requirements;
+    vkGetBufferMemoryRequirements(logical_device, buffer, &mem_requirements);
+
+    VkMemoryAllocateInfo alloc_info = {};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_requirements.size;
+    alloc_info.memoryTypeIndex = find_memory_type(physical_device, mem_requirements.memoryTypeBits, properties);
+
+    if(vkAllocateMemory(logical_device, &alloc_info, nullptr, &memory) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate Buffer memory!");
+    }
+
+    vkBindBufferMemory(logical_device, buffer, memory, 0);
+}
+
+//CREATES INTERACTION BUFFERS
+//Creates the Vertex buffer
+void Vulkan::create_vertex_buffer()
+{
+    VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+    
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer,
+                    staging_buffer_memory);
+
+    void* data;
+    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+        memcpy(data, vertices.data(), (size_t) buffer_size);
+    vkUnmapMemory(logical_device, staging_buffer_memory);
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    vertex_buffer,
+                    vertex_buffer_memory);
+
+    exec_copy_buffer_cmd(staging_buffer, vertex_buffer, buffer_size);
+
+    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
+    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
+}   
+
+//Creates the Index buffer.
+void Vulkan::create_index_buffer()
+{
+    VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
+    
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    staging_buffer,
+                    staging_buffer_memory);
+
+    void* data;
+    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+        memcpy(data, indices.data(), (size_t) buffer_size);
+    vkUnmapMemory(logical_device, staging_buffer_memory);
+
+    create_buffer(  buffer_size, 
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    index_buffer,
+                    index_buffer_memory);
+
+    exec_copy_buffer_cmd(staging_buffer, index_buffer, buffer_size);
+
+    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
+    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
+}
+
+//Creates the Index buffer.
+void Vulkan::create_uniform_buffers()
+{
+    VkDeviceSize buffer_size = sizeof(UniformBufferObject);
+
+    uniform_buffers.resize(swap_chain_images.size());
+    uniform_buffers_memory.resize(swap_chain_images.size());
+
+    for (size_t i = 0; i < swap_chain_images.size(); i++) 
+    {
+        create_buffer(  buffer_size, 
+                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                        uniform_buffers[i], uniform_buffers_memory[i]);
+    }
+}
 
 //Creates and allocates the command buffers for each framebuffer.
 void Vulkan::create_render_command_buffers() 
@@ -47,6 +159,9 @@ void Vulkan::create_render_command_buffers()
     }
 }
 
+//END
+
+//STANDARD RENDER COMMANDS.
 //Holds the instructions executed every loop of the renderer.
 void Vulkan::start_render_cmd(uint32_t current_framebuffer)
 {
@@ -204,6 +319,7 @@ VkCommandBuffer Vulkan::dynamic_render_cmd(uint32_t current_framebuffer)
     return dynamic_instructions;
 }
 
+//ONE-TIME COMMANDS
 //Begins and allocates a command buffer for one time commands.
 VkCommandBuffer Vulkan::begin_one_time_commands()
 {
@@ -240,6 +356,7 @@ void Vulkan::end_one_time_commands(VkCommandBuffer command_buffer)
     vkFreeCommandBuffers(logical_device, command_pool, 1, &command_buffer);
 }
 
+//COMMANDS
 //Executes a copy buffer command on the GPU.
 void Vulkan::exec_copy_buffer_cmd(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
 {
@@ -414,4 +531,340 @@ void Vulkan::queue_submit(  VkQueue queue,
     {
         throw std::runtime_error("Failed to submit draw command buffer.");
     }
+}
+
+
+//Executed every frame, prepares all the data required by the gpu to draw the frames.
+void Vulkan::cpu_draw_frames(uint32_t current_framebuffer)
+{
+    VkOffset2D off = {10, 20};
+    draw_text(  *tiny_font,
+                "This is Foffonso testing some Vulkan shit.",
+                off,
+                0);
+
+    off = {10, 30};
+    draw_text(  *tiny_font,
+                "I know, amazing right?",
+                off,
+                0);
+
+    off = {10, 40};
+    draw_text(  *tiny_font,
+                "Only took like 4000 lines of code.",
+                off,
+                0);
+
+    off = {10, 60};
+    draw_text(  *tiny_font,
+                "And like a week...",
+                off,
+                0);
+
+    off = {10, 80};
+    draw_text(  *tiny_font,
+                "But it kinda works.",
+                off,
+                0);
+
+
+    update_uniform_buffer(current_framebuffer);
+}
+
+//Loop to draw every frame, ends with a request to present the image.
+void Vulkan::draw_frames()
+{
+    //Waits for the fence for the current framebuffer to be signaled
+    vkWaitForFences(logical_device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
+    
+    //Gets the next image in the swapbuffer, the one we'll be rendering to.
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(logical_device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &imageIndex);
+
+    // Check if a previous frame is using this image (i.e. there is its fence to wait on)
+    if (images_in_flight[imageIndex] != VK_NULL_HANDLE) 
+    {
+        vkWaitForFences(logical_device, 1, &images_in_flight[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+
+    vkFreeCommandBuffers(logical_device, command_pool, 1, &command_buffers_dynamic[imageIndex]);
+
+    // Mark the image as now being in use by this frame
+    images_in_flight[imageIndex] = in_flight_fences[current_frame];
+
+    //Resets the current frame fence.
+    vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
+
+    cpu_draw_frames(imageIndex);
+
+    //Queues the start section of the rendering part. Waits for the image Available semaphore
+    queue_submit(   graphics_queue,
+                    &command_buffers_start[imageIndex],
+                    image_available_semaphores[current_frame], 
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_start_finished_semaphores[current_frame],
+                    VK_NULL_HANDLE);
+
+    command_buffers_dynamic[imageIndex] = dynamic_render_cmd(imageIndex);
+
+    queue_submit(   graphics_queue,
+                    &command_buffers_dynamic[imageIndex],
+                    render_start_finished_semaphores[current_frame],
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_dynamic_finished_semaphores[current_frame],
+                    VK_NULL_HANDLE);
+
+    //Queues the end section of the rendering part, waits for the dynamic part to finish, signals the render end section
+    queue_submit(   graphics_queue,
+                    &command_buffers_end[imageIndex],
+                    render_dynamic_finished_semaphores[current_frame],
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    render_end_finished_semaphores[current_frame],
+                    in_flight_fences[current_frame]);
+
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    VkSemaphore ptr_wait_semaphores[] = {render_end_finished_semaphores[current_frame]};
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = ptr_wait_semaphores;
+
+    VkSwapchainKHR swapChains[] = {swap_chain};
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr; // Optional
+
+    //Queue the command to present the current frame image.
+    vkQueuePresentKHR(present_queue, &presentInfo);
+    current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+    //std::cout << "FPS = " << get_FPS() << std::endl;
+
+    sprite_queue.clear_queue();   
+}
+
+/*
+double Vulkan::get_FPS()
+{
+    double average_frame_time = 0.;
+
+    for(int i = 0; i < swap_timers.size(); i++)
+    {
+        average_frame_time += swap_timers[i]->delta_time();
+    }
+
+    average_frame_time /= swap_timers.size();
+
+    return 1./average_frame_time;
+}
+*/
+
+//SYNC
+void Vulkan::create_semaphore(VkSemaphore& semaphore)
+{
+    VkSemaphoreCreateInfo semaphore_info = {};
+    semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    if(vkCreateSemaphore(logical_device, &semaphore_info, nullptr, &semaphore) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to create semaphore for a frame!");
+    }
+}
+
+void Vulkan::create_fence(VkFence& fence)
+{
+    VkFenceCreateInfo fence_info = {};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    
+    if(vkCreateFence(logical_device, &fence_info, nullptr, &fence) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create fence for a frame!");
+    }
+}
+//Creates the syncronization objects we'll use.
+void Vulkan::create_sync_objects() 
+{
+    image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    render_start_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    render_dynamic_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    render_end_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+
+    in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
+    images_in_flight.resize(swap_chain_images.size(), VK_NULL_HANDLE);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        create_semaphore(image_available_semaphores[i]);
+        create_semaphore(render_start_finished_semaphores[i]);
+        create_semaphore(render_dynamic_finished_semaphores[i]);
+        create_semaphore(render_end_finished_semaphores[i]);
+
+        create_fence(in_flight_fences[i]);
+    }
+}
+
+void Vulkan::destroy_sync_objects()
+{
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        vkDestroySemaphore(logical_device, render_start_finished_semaphores[i], nullptr);
+        vkDestroySemaphore(logical_device, render_dynamic_finished_semaphores[i], nullptr);
+        vkDestroySemaphore(logical_device, render_end_finished_semaphores[i], nullptr);
+        vkDestroySemaphore(logical_device, image_available_semaphores[i], nullptr);
+        vkDestroyFence(logical_device, in_flight_fences[i], nullptr);
+    }
+}
+
+void Vulkan::create_descriptor_set_layout()
+{
+    VkDescriptorSetLayoutBinding ubo_layout_binding = {};
+
+    ubo_layout_binding.binding = 0;
+    ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ubo_layout_binding.descriptorCount = 1;
+    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    ubo_layout_binding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutBinding sampler_layout_binding{};
+    sampler_layout_binding.binding = 1;
+    sampler_layout_binding.descriptorCount = 1;
+    sampler_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    sampler_layout_binding.pImmutableSamplers = nullptr;
+    sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {ubo_layout_binding, sampler_layout_binding};
+
+    VkDescriptorSetLayoutCreateInfo layout_info = {};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = static_cast<uint32_t>(bindings.size());
+    layout_info.pBindings = bindings.data();
+
+    if (vkCreateDescriptorSetLayout(logical_device, &layout_info, nullptr, &descriptor_set_layout) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to create descriptor set layout.");
+    }
+}
+
+void Vulkan::create_descriptor_pool()
+{
+    std::array<VkDescriptorPoolSize, 2> pool_sizes = {};
+    pool_size[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_size[0].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
+    pool_size[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_size[1].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
+
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes.data();
+    pool_info.maxSets = static_cast<uint32_t>(swap_chain_images.size());
+
+    if (vkCreateDescriptorPool(logical_device, &pool_info, nullptr, &descriptor_pool) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to create descriptor pool.");
+    }
+}
+
+void Vulkan::create_descriptor_sets()
+{
+    std::vector<VkDescriptorSetLayout> layouts(swap_chain_images.size(), descriptor_set_layout);
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = descriptor_pool;
+    alloc_info.descriptorSetCount = static_cast<uint32_t>(swap_chain_images.size());
+    alloc_info.pSetLayouts = layouts.data();
+
+    descriptor_sets.resize(swap_chain_images.size());
+
+    if (vkAllocateDescriptorSets(logical_device, &alloc_info, descriptor_sets.data()) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("Failed to allocate descriptor sets.");
+    }
+
+    for (size_t i = 0; i < swap_chain_images.size(); i++) 
+    {
+        VkDescriptorBufferInfo buffer_info = {};
+        buffer_info.buffer = uniform_buffers[i];
+        buffer_info.offset = 0;
+        buffer_info.range = sizeof(UniformBufferObject);
+
+        VkDescriptorImageInfo image_info = {};
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        image_info.imageView = textureImageView;
+        image_info.sampler = textureSampler;
+
+        std::array<VkWriteDescriptorSet, 2> descriptor_writes{};
+
+        descriptor_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[0].dstSet = descriptor_sets[i];
+        descriptor_writes[0].dstBinding = 0;
+        descriptor_writes[0].dstArrayElement = 0;
+        descriptor_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptor_writes[0].descriptorCount = 1;
+        descriptor_writes[0].pBufferInfo = &bufferInfo;
+
+        descriptor_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptor_writes[1].dstSet = descriptor_sets[i];
+        descriptor_writes[1].dstBinding = 1;
+        descriptor_writes[1].dstArrayElement = 0;
+        descriptor_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptor_writes[1].descriptorCount = 1;
+        descriptor_writes[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets( logical_device,  
+                                static_cast<uint32_t>(descriptor_writes.size()), 
+                                descriptor_writes.data(), 
+                                0, nullptr);
+    }
+}
+
+void Vulkan::draw_text( VulkanFont& font,
+                        const char * content,
+                        const VkOffset2D& offset,
+                        uint32_t layer)
+{
+    VkOffset2D current_offset;
+    current_offset.y = offset.y;
+    for(size_t i = 0; content[i] != '\0'; i++)
+    {
+        current_offset.x = offset.x + i*font.dimensions.width;
+
+        draw_char(font, content[i], current_offset, layer);
+    }
+}
+
+void Vulkan::draw_char( VulkanFont& font,
+                        char content,
+                        const VkOffset2D& offset,
+                        uint32_t layer)
+{
+    char printable = content - 0x20;
+
+    VkRect2D src =  {   (printable%0x20)*(int32_t)font.dimensions.width, 
+                        (printable/0x20)*(int32_t)font.dimensions.height, 
+                        font.dimensions.width, 
+                        font.dimensions.height};
+    VkRect2D dst = {    offset.x, offset.y, 
+                        font.dimensions.width, font.dimensions.height};
+
+    VulkanSprite* sprite = new VulkanSprite(&font.texture, 
+                                            src, 
+                                            dst);
+    sprite_queue.queue_sprite(sprite, layer);
+}
+
+void Vulkan::update_uniform_buffer(uint32_t current_image)
+{
+    UniformBufferObject ubo = {};
+    ubo.model = m4f_rotate(m4f_identity(), Timer::time() * 0.5f, Vector3f(0.8f, 0.0f, 0.5f));
+    ubo.view  = m4f_translate(Vector3f(0.0f, 0.0f, 3.0f));
+    ubo.proj  = m4f_perspective(radians(45.0f), (float) WIDTH / (float) HEIGHT, 0.1f, 10.0f);
+
+    void* data;
+    vkMapMemory(logical_device, uniform_buffers_memory[current_image], 0, sizeof(ubo), 0, &data);
+        memcpy(data, &ubo, sizeof(ubo));
+    vkUnmapMemory(logical_device, uniform_buffers_memory[current_image]);
 }

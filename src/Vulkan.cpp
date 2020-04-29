@@ -3,21 +3,18 @@
 //Initializes all of the vulkan systems
 Vulkan::Vulkan()
 {
-    window_init();
     create_vulkan_instance();
     setup_debug_messenger();
-    create_surface();
     pick_physical_device();
     create_logical_device();
     create_swap_chain();
-    create_swap_chain_image_views();
     create_render_targets();
-    create_render_target_image_views();
     create_render_pass();
     create_descriptor_set_layout();
     create_graphics_pipeline();
     create_framebuffers();
     create_command_pool();
+    create_texture_sampler();
     create_vertex_buffer();
     create_index_buffer();
     create_uniform_buffers();
@@ -36,6 +33,8 @@ Vulkan::Vulkan()
 Vulkan::~Vulkan()
 {
     vkDeviceWaitIdle(logical_device);
+
+    vkDestroySampler(logical_device, texture_sampler, nullptr);
 
     delete tiny_font;
     destroy_sync_objects();
@@ -101,24 +100,5 @@ Vulkan::~Vulkan()
 
     SDL_DestroyWindow(ptr_window);
     SDL_Quit();
-}
-
-
-uint32_t Vulkan::find_memory_type(  uint32_t type_filter, 
-                                    VkMemoryPropertyFlags properties) 
-{
-    VkPhysicalDeviceMemoryProperties mem_properties;
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
-
-    for (uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) 
-    {
-        if ((type_filter & (1 << i)) && 
-            (mem_properties.memoryTypes[i].propertyFlags & properties) == properties) 
-        {
-            return i;
-        }
-    }
-
-    throw std::runtime_error("failed to find suitable memory type!");
 }
 

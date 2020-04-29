@@ -34,7 +34,7 @@ void Vulkan::create_vulkan_image(   uint32_t width, uint32_t height,
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    allocInfo.memoryTypeIndex = find_memory_type(physical_device, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     if (vkAllocateMemory(logical_device, &allocInfo, nullptr, &memory) != VK_SUCCESS) 
     {
@@ -42,4 +42,28 @@ void Vulkan::create_vulkan_image(   uint32_t width, uint32_t height,
     }
 
     vkBindImageMemory(logical_device, image, memory, 0);
+}
+
+VkImageView Vulkan::create_image_view(    VkImage image, 
+                                          VkFormat format) 
+{
+    VkImageViewCreateInfo view_info = {};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image = image;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format = format;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+
+    VkImageView image_view;
+
+    if (vkCreateImageView(logical_device, &view_info, nullptr, &image_view) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create texture image view!");
+    }
+
+    return image_view;
 }

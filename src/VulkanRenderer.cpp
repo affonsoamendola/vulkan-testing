@@ -1,5 +1,154 @@
 #include "Vulkan.hpp"
+//SWAP
+//Chooses the swapsurface format.
+VkSurfaceFormatKHR Vulkan::choose_swap_surface_format(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+{
+    for (const auto& availableFormat : availableFormats) 
+    {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && 
+            availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
+        {
+            return availableFormat;
+        }
+    }   
 
+    return availableFormats[0];
+}
+
+//Chooses the swapsurface Present mode.
+VkPresentModeKHR Vulkan::choose_swap_present_mode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
+{
+    for (const auto& availablePresentMode : availablePresentModes) 
+    {
+        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) 
+        {
+            return availablePresentMode;
+        }
+    }
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+//Chooses the swapsurface extent..
+VkExtent2D Vulkan::choose_swap_extent(const VkSurfaceCapabilitiesKHR& capabilities) 
+{
+ 
+    if (capabilities.currentExtent.width != UINT32_MAX) 
+    {
+        return capabilities.currentExtent;
+    } 
+    else 
+    {
+        VkExtent2D actualExtent = {WIDTH, HEIGHT};
+
+        actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
+        actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
+        return actualExtent;
+    }
+}
+
+//Checks if the physical device supports the swap chain we need.
+SwapChainSupportDetails Vulkan::query_swap_chain_support(VkPhysicalDevice device)
+{
+    SwapChainSupportDetails details;
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+    uint32_t formatCount;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+    if (formatCount != 0) {
+        details.formats.resize(formatCount);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+    }
+
+    uint32_t presentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+    if (presentModeCount != 0) {
+        details.presentModes.resize(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+    }
+
+    return details;
+}
+
+//Crates the actual swapchain.
+void Vulkan::create_swap_chain() 
+{
+    SwapChainSupportDetails swapChainSupport = query_swap_chain_support(physical_device);
+
+    VkSurfaceFormatKHR surfaceFormat = choose_swap_surface_format(swapChainSupport.formats);
+    VkPresentModeKHR presentMode = choose_swap_present_mode(swapChainSupport.presentModes);
+    VkExtent2D extent = choose_swap_extent(swapChainSupport.capabilities);
+
+    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+
+    if(swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
+    {
+        imageCount = swapChainSupport.capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR createInfo = {};
+
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = surface;
+    createInfo.minImageCount = imageCount;
+    createInfo.imageFormat = surfaceFormat.format;
+    createInfo.imageColorSpace = surfaceFormat.colorSpace;
+    createInfo.imageExtent = extent;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    QueueFamilyIndices indices = find_queue_families(physical_device);
+    uint32_t queueFamilyIndices[] = 
+    {
+        indices.graphicsFamily.value(), indices.presentFamily.value()
+    };
+
+    if (indices.graphicsFamily != indices.presentFamily) 
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = 2;
+        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+    } 
+    else 
+    {
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0; // Optional
+        createInfo.pQueueFamilyIndices = nullptr; // Optional
+    }
+
+    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    createInfo.presentMode = presentMode;
+    createInfo.clipped = VK_TRUE;
+
+    if(vkCreateSwapchainKHR(logical_device, &createInfo, nullptr, &swap_chain) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create Swapchain.");
+    }
+
+    vkGetSwapchainImagesKHR(logical_device, swap_chain, &imageCount, nullptr);
+    swap_chain_images.resize(imageCount);
+    vkGetSwapchainImagesKHR(logical_device, swap_chain, &imageCount, swap_chain_images.data());
+
+    swap_chain_image_format = surfaceFormat.format;
+    swap_chain_image_extent = extent;
+
+    //Creates the image views for every swapchain image.
+    swap_chain_image_views.resize(swap_chain_images.size());
+
+    for(size_t i = 0; i < swap_chain_images.size(); i++)
+    {
+        swap_chain_image_views[i] = create_image_view(swap_chain_images[i], swap_chain_image_format);
+    }
+}
+
+//END SWAP
+
+//RENDER TARGETS
 //Creates render targets for each swapchain Image.
 //TODO: Change this to use VulkanImage()
 void Vulkan::create_render_targets()
@@ -43,7 +192,7 @@ void Vulkan::create_render_targets()
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = find_memory_type(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        allocInfo.memoryTypeIndex = find_memory_type(physical_device, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         if (vkAllocateMemory(logical_device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) 
         {
@@ -57,11 +206,8 @@ void Vulkan::create_render_targets()
     }
 
     render_target_image_format = swap_chain_image_format;
-}
 
-//Creates the image views for every render_target image.
-void Vulkan::create_render_target_image_views()
-{
+    //Creates Render target Image views.
     render_target_image_views.resize(render_target_images.size());
 
     for(size_t i = 0; i < render_target_images.size(); i++)
@@ -90,6 +236,7 @@ void Vulkan::create_render_target_image_views()
     }
 }
 
+//GRAPHICS PIPELINE
 //TODO: Better Documentation
 //Creates the Render Pass
 void Vulkan::create_render_pass()
@@ -134,23 +281,6 @@ void Vulkan::create_render_pass()
     {
         throw std::runtime_error("Failed to create render pass.");
     }
-}
-
-//Loads the bytecode of a glsl SPIR-V shader into a VkShaderModule wrapper.
-VkShaderModule Vulkan::create_shader_module(const std::vector<char>& code) //THIS IS FINE
-{
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(logical_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
-    {
-        throw std::runtime_error("Failed to create shader module.");
-    }
-
-    return shaderModule;
 }
 
 //Creates the graphics Pipeline we'll use.
@@ -333,206 +463,22 @@ void Vulkan::create_framebuffers()
     }
 }
 
-//Executed every frame, prepares all the data required by the gpu to draw the frames.
-void Vulkan::cpu_draw_frames(uint32_t current_framebuffer)
+//END PIPELINE.
+
+//SHADERS
+//Loads the bytecode of a glsl SPIR-V shader into a VkShaderModule wrapper.
+VkShaderModule Vulkan::create_shader_module(const std::vector<char>& code) //THIS IS FINE
 {
-    VkOffset2D off = {10, 20};
-    draw_text(  *tiny_font,
-                "This is Foffonso testing some Vulkan shit.",
-                off,
-                0);
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = code.size();
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
-    off = {10, 30};
-    draw_text(  *tiny_font,
-                "I know, amazing right?",
-                off,
-                0);
-
-    off = {10, 40};
-    draw_text(  *tiny_font,
-                "Only took like 4000 lines of code.",
-                off,
-                0);
-
-    off = {10, 60};
-    draw_text(  *tiny_font,
-                "And like a week...",
-                off,
-                0);
-
-    off = {10, 80};
-    draw_text(  *tiny_font,
-                "But it kinda works.",
-                off,
-                0);
-
-
-    update_uniform_buffer(current_framebuffer);
-}
-
-//Loop to draw every frame, ends with a request to present the image.
-void Vulkan::draw_frames()
-{
-    //Waits for the fence for the current framebuffer to be signaled
-    vkWaitForFences(logical_device, 1, &in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
-    
-    //Gets the next image in the swapbuffer, the one we'll be rendering to.
-    uint32_t imageIndex;
-    vkAcquireNextImageKHR(logical_device, swap_chain, UINT64_MAX, image_available_semaphores[current_frame], VK_NULL_HANDLE, &imageIndex);
-
-    // Check if a previous frame is using this image (i.e. there is its fence to wait on)
-    if (images_in_flight[imageIndex] != VK_NULL_HANDLE) 
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(logical_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
     {
-        vkWaitForFences(logical_device, 1, &images_in_flight[imageIndex], VK_TRUE, UINT64_MAX);
+        throw std::runtime_error("Failed to create shader module.");
     }
 
-    vkFreeCommandBuffers(logical_device, command_pool, 1, &command_buffers_dynamic[imageIndex]);
-
-    // Mark the image as now being in use by this frame
-    images_in_flight[imageIndex] = in_flight_fences[current_frame];
-
-    //Resets the current frame fence.
-    vkResetFences(logical_device, 1, &in_flight_fences[current_frame]);
-
-    cpu_draw_frames(imageIndex);
-
-    //Queues the start section of the rendering part. Waits for the image Available semaphore
-    queue_submit(   graphics_queue,
-                    &command_buffers_start[imageIndex],
-                    image_available_semaphores[current_frame], 
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    render_start_finished_semaphores[current_frame],
-                    VK_NULL_HANDLE);
-
-    command_buffers_dynamic[imageIndex] = dynamic_render_cmd(imageIndex);
-
-    queue_submit(   graphics_queue,
-                    &command_buffers_dynamic[imageIndex],
-                    render_start_finished_semaphores[current_frame],
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    render_dynamic_finished_semaphores[current_frame],
-                    VK_NULL_HANDLE);
-
-    //Queues the end section of the rendering part, waits for the dynamic part to finish, signals the render end section
-    queue_submit(   graphics_queue,
-                    &command_buffers_end[imageIndex],
-                    render_dynamic_finished_semaphores[current_frame],
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    render_end_finished_semaphores[current_frame],
-                    in_flight_fences[current_frame]);
-
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
-    VkSemaphore ptr_wait_semaphores[] = {render_end_finished_semaphores[current_frame]};
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = ptr_wait_semaphores;
-
-    VkSwapchainKHR swapChains[] = {swap_chain};
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
-    presentInfo.pImageIndices = &imageIndex;
-    presentInfo.pResults = nullptr; // Optional
-
-    //Queue the command to present the current frame image.
-    vkQueuePresentKHR(present_queue, &presentInfo);
-    current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
-
-    //std::cout << "FPS = " << get_FPS() << std::endl;
-
-    sprite_queue.clear_queue();   
-}
-
-/*
-double Vulkan::get_FPS()
-{
-    double average_frame_time = 0.;
-
-    for(int i = 0; i < swap_timers.size(); i++)
-    {
-        average_frame_time += swap_timers[i]->delta_time();
-    }
-
-    average_frame_time /= swap_timers.size();
-
-    return 1./average_frame_time;
-}
-*/
-//Creates the Vertex buffer
-void Vulkan::create_vertex_buffer()
-{
-    VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
-    
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-
-    create_buffer(  buffer_size, 
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    staging_buffer,
-                    staging_buffer_memory);
-
-    void* data;
-    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
-        memcpy(data, vertices.data(), (size_t) buffer_size);
-    vkUnmapMemory(logical_device, staging_buffer_memory);
-
-    create_buffer(  buffer_size, 
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    vertex_buffer,
-                    vertex_buffer_memory);
-
-    exec_copy_buffer_cmd(staging_buffer, vertex_buffer, buffer_size);
-
-    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
-    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
-}   
-
-//Creates the Index buffer.
-void Vulkan::create_index_buffer()
-{
-    VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
-    
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-
-    create_buffer(  buffer_size, 
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    staging_buffer,
-                    staging_buffer_memory);
-
-    void* data;
-    vkMapMemory(logical_device, staging_buffer_memory, 0, buffer_size, 0, &data);
-        memcpy(data, indices.data(), (size_t) buffer_size);
-    vkUnmapMemory(logical_device, staging_buffer_memory);
-
-    create_buffer(  buffer_size, 
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    index_buffer,
-                    index_buffer_memory);
-
-    exec_copy_buffer_cmd(staging_buffer, index_buffer, buffer_size);
-
-    vkDestroyBuffer(logical_device, staging_buffer, nullptr);
-    vkFreeMemory(logical_device, staging_buffer_memory, nullptr);
-}
-
-//Creates the Index buffer.
-void Vulkan::create_uniform_buffers()
-{
-    VkDeviceSize buffer_size = sizeof(UniformBufferObject);
-
-    uniform_buffers.resize(swap_chain_images.size());
-    uniform_buffers_memory.resize(swap_chain_images.size());
-
-    for (size_t i = 0; i < swap_chain_images.size(); i++) 
-    {
-        create_buffer(  buffer_size, 
-                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-                        uniform_buffers[i], uniform_buffers_memory[i]);
-    }
+    return shaderModule;
 }

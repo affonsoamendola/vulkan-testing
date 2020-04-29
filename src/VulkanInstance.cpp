@@ -1,7 +1,11 @@
 #include "Vulkan.hpp"
+#include "vulkan/vulkan.hpp"
 
-void Vulkan::window_init() //Inits and creates SDL Window.
+
+//INSTANCE
+void Vulkan::create_vulkan_instance()  //Creates a vulkan instance.
 {
+    //Creates window
     ptr_window = SDL_CreateWindow( "Foffonso's Vulkan Experiment",  
                                     SDL_WINDOWPOS_UNDEFINED, 
                                     SDL_WINDOWPOS_UNDEFINED, 
@@ -13,23 +17,13 @@ void Vulkan::window_init() //Inits and creates SDL Window.
     {
         throw std::runtime_error("Could not create SDL2 window.");
     }
-}
-
-void Vulkan::create_surface() //Creates a surface compatible with Vulkan for use with the window.
-{
-    if(SDL_Vulkan_CreateSurface(ptr_window, instance, &surface) != SDL_TRUE)
-    {
-        throw std::runtime_error("Error creating window surface.");
-    }    
-}
-
-void Vulkan::create_vulkan_instance()  //Creates a vulkan instance.
-{
+    //----
+    
     if(enable_validation_layers && !check_validation_layer_support()) //Throw error if validation layers are not available.
     {
         throw std::runtime_error("Validation layers requested but not available.");
-    }    
-
+    }
+    
     VkApplicationInfo appInfo = {};  //Struct to hold Application Info 
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "Triangle Test";
@@ -62,19 +56,18 @@ void Vulkan::create_vulkan_instance()  //Creates a vulkan instance.
         createInfo.enabledLayerCount = 0;   //If validation layers are disabled. disable layers for this instance.
         createInfo.pNext = nullptr;
     }
-    /* This apparently does nothing.
-    uint32_t vk_extensionCount = 0;
-    
-    vkEnumerateInstanceExtensionProperties(nullptr, &vk_extensionCount, nullptr);
-
-    std::vector<VkExtensionProperties> vk_extensions(vk_extensionCount);
-
-    vkEnumerateInstanceExtensionProperties(nullptr, &vk_extensionCount, vk_extensions.data());
-    */
+  
     if(vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create Vulkan Instance!");
     }    
+
+    //Create Surface for window
+    if(SDL_Vulkan_CreateSurface(ptr_window, instance, &surface) != SDL_TRUE)
+    {
+        throw std::runtime_error("Error creating window surface.");
+    }    
+    //----
 }
 
 //TODO: Check the differences between instance extensions and normal extensions, is there even such a thing?
@@ -103,6 +96,7 @@ std::vector<const char*> Vulkan::get_required_extensions() //Returns all the ext
     return extensions;
 }
 
+//PYSICAL DEVICE
 //Gets the indices for the queue families on a physical device.
 QueueFamilyIndices Vulkan::find_queue_families(VkPhysicalDevice device) 
 {
@@ -175,7 +169,6 @@ void Vulkan::pick_physical_device() //Choose Physical device to use.
 }
 
 //Checks if device supports all extensions we want.
-//TODO: Should I add the glfw required extensions here as well?
 bool Vulkan::check_device_extension_support(VkPhysicalDevice device)
 {
     uint32_t extensionCount;
@@ -219,10 +212,35 @@ bool Vulkan::is_device_suitable(VkPhysicalDevice device)
     }
 
     return  hasRequiredDeviceExtensions &&
-            swapChainAdequate &&
+            swapChainAdequate && 
+            deviceFeatures.samplerAnisotropy && 
             queueIndices.isComplete(); //This can mess up stuff if it found a present queue that isnt a a graphics one.
 }
 
+//Checks physical device for requested memory type
+uint32_t Vulkan::find_memory_type(  VkPhysicalDevice device,
+                                    uint32_t type_filter, 
+                                    VkMemoryPropertyFlags properties) 
+{
+    VkPhysicalDeviceMemoryProperties mem_properties;
+    vkGetPhysicalDeviceMemoryProperties(device, &mem_properties);
+
+    for (uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) 
+    {
+        if ((type_filter & (1 << i)) && 
+            (mem_properties.memoryTypes[i].propertyFlags & properties) == properties) 
+        {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("failed to find suitable memory type!");
+}
+
+
+//END PHYSICAL DEVICE
+
+//LOGICAL DEVICE
 //Creates the logical device for the physical device we chose.
 void Vulkan::create_logical_device()
 {
@@ -243,13 +261,14 @@ void Vulkan::create_logical_device()
     }
     //Creates the device Queues create infos.
 
-    VkPhysicalDeviceFeatures deviceFeatures = {};
+    VkPhysicalDeviceFeatures device_features = {};
+    device_features.samplerAnisotropy = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    createInfo.pEnabledFeatures = &deviceFeatures;
+    createInfo.pEnabledFeatures = &device_features;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(required_device_extensions.size());
     createInfo.ppEnabledExtensionNames = required_device_extensions.data();
 
@@ -271,4 +290,124 @@ void Vulkan::create_logical_device()
     vkGetDeviceQueue(logical_device, indices.graphicsFamily.value(), 0, &graphics_queue);
     vkGetDeviceQueue(logical_device, indices.presentFamily.value(), 0, &present_queue); //Gets the device queues and puts them on the designated holders.
 }
+
+//DEBUG / Validation Layers
+
+//Callback function for the debug messenger.
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback
+(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* ptr_callbackData,
+    void* ptr_userData
+)
+{
+    //Prints debug message to console
+    //TODO: Add logging to file.
+    std::cerr << "Validation Layer : " << ptr_callbackData->pMessage << std::endl;
+    return VK_FALSE;       
+}
+
+//Populates the create info struct for the Debug Messenger.
+void Vulkan::populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& create_info)
+{   
+    create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    create_info.messageSeverity =  //Sets message severity for the debugMessenger, disabled wont be tracked
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | 
+      //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | 
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    create_info.messageType =    //Sets message types for the debug Messenger, disabled wont be tracked
+        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    create_info.pfnUserCallback = debugCallback;
+    create_info.pUserData = nullptr;
+}
+
+//Sets up the debug Messenger system
+void Vulkan::setup_debug_messenger()  
+{
+    if(!enable_validation_layers) return; //We dont need a debug messenger if we are not in a debug build (Also we need validation layers to actually send messages to it.)
+                                           //....I think.
+
+    VkDebugUtilsMessengerCreateInfoEXT createInfo;  
+    populate_debug_messenger_create_info(createInfo); //Populates the *actual* create info for the debugMessenger, the other one doesnt actually create a debug messenger.
+
+    //Creates debug Messenger.
+    if (create_debug_utils_messenger_EXT(instance, &createInfo, nullptr, &debug_messenger) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to set up debug messenger!");
+    }
+}
+
+//Checks if requested Validation Layers are available.
+bool Vulkan::check_validation_layer_support() 
+{
+    unsigned int layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for(const char * layerName : validation_layers)
+    {
+        bool layerFound = false;
+        for(const auto& layerProperties : availableLayers)
+        {
+            if(strcmp(layerName, layerProperties.layerName) == 0)
+            {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if(!layerFound)
+        {
+            return false; //If even a single layer requested is not available, return false.
+        }    
+    }
+
+    return true;    
+}
+
+//Creates the debug Utils Messenger.
+VkResult create_debug_utils_messenger_EXT
+(
+    VkInstance instance, 
+    const VkDebugUtilsMessengerCreateInfoEXT* ptr_create_info, 
+    const VkAllocationCallbacks* ptr_allocator, 
+    VkDebugUtilsMessengerEXT* ptr_debug_messenger
+) 
+{
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+    if (func != nullptr) 
+    {
+        return func(instance, ptr_create_info, ptr_allocator, ptr_debug_messenger);
+    } 
+    else 
+    {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+}
+
+//Destroys the debug messenger.
+void destroy_debug_utils_messenger_EXT
+(
+    VkInstance instance, 
+    VkDebugUtilsMessengerEXT debug_messenger,
+    const VkAllocationCallbacks* ptr_allocator
+) 
+{
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+
+    if (func != nullptr) 
+    {
+        return func(instance, debug_messenger, ptr_allocator);
+    } 
+}
+
 

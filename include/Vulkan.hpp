@@ -23,14 +23,12 @@
 #include "Vector2f.hpp"
 #include "Vector3f.hpp"
 
-#include "VulkanDebug.hpp"
-#include "VulkanSetup.hpp"
-#include "VulkanSwap.hpp"
-#include "VulkanTexture.hpp"
-#include "VulkanSprite.hpp"
+#include "VulkanControl.hpp"
 #include "VulkanFont.hpp"
+#include "VulkanInstance.hpp"
+#include "VulkanRenderer.hpp"
+#include "VulkanSprite.hpp"
 #include "VulkanVertex.hpp"
-#include "VulkanUniformBuffer.hpp"
 
 #include "Timer.hpp"
 #include "Util.hpp"
@@ -45,7 +43,7 @@ public:
     const uint32_t PIXEL_SCALE = 3;
 
     const int MAX_FRAMES_IN_FLIGHT = 3;
-System.out.println()
+
     #ifdef NDEBUG
     const bool enable_validation_layers = false;
     #else
@@ -84,6 +82,7 @@ System.out.println()
     VkDescriptorPool        descriptor_pool;
     std::vector<VkDescriptorSet> descriptor_sets;
 
+    VkSampler texture_sampler;
 
     VkPipelineLayout    pipeline_layout;
     VkPipeline          graphics_pipeline;
@@ -145,7 +144,7 @@ System.out.println()
 
     size_t current_frame = 0;
 
-     //Init
+     //INSTANCE
     Vulkan();
     ~Vulkan();
 
@@ -156,12 +155,10 @@ System.out.println()
 
 	std::vector<const char*> get_required_extensions();
 
-    //Debug
 	void populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT& create_info);
 	void setup_debug_messenger();
 	bool check_validation_layer_support();
 
-    //Setup
 	QueueFamilyIndices find_queue_families(VkPhysicalDevice device);
 
 	void pick_physical_device();
@@ -170,7 +167,7 @@ System.out.println()
 
 	void create_logical_device();
 
-    //Swapchain
+    //RENDERER
     VkSurfaceFormatKHR choose_swap_surface_format(const std::vector<VkSurfaceFormatKHR>& available_formats);
     VkPresentModeKHR choose_swap_present_mode(const std::vector<VkPresentModeKHR>& available_present_modes); 
     VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR& capabilities); 
@@ -179,7 +176,6 @@ System.out.println()
     void create_swap_chain();
     void create_swap_chain_image_views();
 
-    //Graphics Pipeline
     void create_render_targets();
     void create_render_target_image_views();
 
@@ -191,11 +187,14 @@ System.out.println()
 
 	void create_framebuffers(); 
 
+    void create_texture_sampler();
+
     void cpu_draw_frames(uint32_t current_framebuffer);
     void draw_frames();
 
     double get_FPS();
 
+    //COMMAND
     void update_uniform_buffer(uint32_t current_image);
 
     //Vertex Buffer
@@ -203,7 +202,6 @@ System.out.println()
 
     //Index Buffer
     void create_index_buffer();
-
     void create_uniform_buffers();
 
     //Descriptor Set Layout
@@ -248,6 +246,9 @@ System.out.println()
                                 VkImageUsageFlags usage, 
                                 VkImage& image, VkDeviceMemory& memory);
 
+    VkImageView create_image_view(  VkImage image, 
+                                    VkFormat format);
+
     //Sync
     void create_semaphore(VkSemaphore& semaphore);
     void create_fence(VkFence& fence);
@@ -272,7 +273,8 @@ System.out.println()
                     uint32_t layer);
 
     //Misc
-    uint32_t find_memory_type(  uint32_t type_filter, 
+    uint32_t find_memory_type(  VkPhysicalDevice device,
+                                uint32_t type_filter, 
                                 VkMemoryPropertyFlags properties);
 };
 

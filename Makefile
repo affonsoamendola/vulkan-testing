@@ -1,8 +1,8 @@
 BINARY := vulkan
-SOURCES := $(wildcard *.cpp)
-OBJECTS := $(patsubst %.cpp,%.o,$(SOURCES))
-DEPENDS := $(patsubst %.cpp,%.d,$(SOURCES))
-CXXFLAGS := -std=c++17 -I$(VULKAN_SDK_PATH)/include -g
+SOURCES := $(wildcard src/*.cpp)
+OBJECTS := $(patsubst src/%.cpp,src/%.o,$(SOURCES))
+DEPENDS := $(patsubst src/%.cpp,src/%.d,$(SOURCES))
+CXXFLAGS := -std=c++17 -I$(VULKAN_SDK_PATH)/include -I./include -g
 LDFLAGS = -L$(VULKAN_SDK_PATH)/lib `pkg-config --static --libs sdl2` -lvulkan -lSDL2_image
 SHADERSSOURCES := shaders/frag.frag shaders/vert.vert
 SHADERSOBJ := shaders/frag.spv shaders/vert.spv

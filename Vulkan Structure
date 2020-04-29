@@ -1,0 +1,25 @@
+Vulkan Structure
+
+Vulkan Class -> Instance Holder
+|- 	Init Window - Instance 
+|-  Create Instance - Instance 
+|-  Setup Debug - Debug/Instance
+|-  Create Surface - Instance 
+|-  Choose Physical Device - 
+|-  Create Logical Device - 
+|-  Create Swap Chain - Renderer
+|----  Create Swap Chain Image Views 
+|-  Create Render Target - Renderer
+|----  Create Render Target Image Views
+|-  Create Render Pass - Renderer
+|-  Create Descriptor Set Layout - Control
+|-  Create Graphics Pipeline - Renderer
+|-  Create Framebuffers - Renderer
+|-  Create Command Pools - Control
+|-  Create Vertex Buffer - Control
+|-  Create Index Buffer - Control
+|-  Create Uniform Buffer - Control
+|-  Create Descriptor Pool - Control
+|-  Create Descriptor Sets - Control 
+|-  Create Render Command Buffer - Control
+\-  Create Sync Objects - Control

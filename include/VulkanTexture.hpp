@@ -14,6 +14,7 @@ struct VulkanTexture
 	Vulkan* 		vulkan_instance;
 
 	VkImage 		image;
+	VkImageView 	image_view;
 	VkExtent2D 		image_extent;
 	VkFormat		image_format;
 	VkDeviceMemory 	device_memory;
