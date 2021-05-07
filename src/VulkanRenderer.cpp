@@ -26,7 +26,7 @@ VkPresentModeKHR Vulkan::choose_swap_present_mode(const std::vector<VkPresentMod
         }
     }
 
-    return VK_PRESENT_MODE_FIFO_KHR;
+    return VK_PRESENT_MODE_IMMEDIATE_KHR; //FIFO is fucked on my nvidia linux driver, immediate is the only one that works.
 }
 
 //Chooses the swapsurface extent..

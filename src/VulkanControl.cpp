@@ -750,15 +750,15 @@ void Vulkan::create_descriptor_set_layout()
 void Vulkan::create_descriptor_pool()
 {
     std::array<VkDescriptorPoolSize, 2> pool_sizes = {};
-    pool_size[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_size[0].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
-    pool_size[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_size[1].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
+    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_sizes[0].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
+    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_sizes[1].descriptorCount = static_cast<uint32_t>(swap_chain_images.size());
 
 
     VkDescriptorPoolCreateInfo pool_info = {};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes);
+    pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
     pool_info.pPoolSizes = pool_sizes.data();
     pool_info.maxSets = static_cast<uint32_t>(swap_chain_images.size());
 
@@ -793,8 +793,8 @@ void Vulkan::create_descriptor_sets()
 
         VkDescriptorImageInfo image_info = {};
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_info.imageView = textureImageView;
-        image_info.sampler = textureSampler;
+        image_info.imageView = render_target_image_views[i];
+        image_info.sampler = texture_sampler;
 
         std::array<VkWriteDescriptorSet, 2> descriptor_writes{};
 
@@ -804,7 +804,7 @@ void Vulkan::create_descriptor_sets()
         descriptor_writes[0].dstArrayElement = 0;
         descriptor_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptor_writes[0].descriptorCount = 1;
-        descriptor_writes[0].pBufferInfo = &bufferInfo;
+        descriptor_writes[0].pBufferInfo = &buffer_info;
 
         descriptor_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptor_writes[1].dstSet = descriptor_sets[i];
@@ -812,7 +812,7 @@ void Vulkan::create_descriptor_sets()
         descriptor_writes[1].dstArrayElement = 0;
         descriptor_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptor_writes[1].descriptorCount = 1;
-        descriptor_writes[1].pImageInfo = &imageInfo;
+        descriptor_writes[1].pImageInfo = &image_info;
 
         vkUpdateDescriptorSets( logical_device,  
                                 static_cast<uint32_t>(descriptor_writes.size()), 
